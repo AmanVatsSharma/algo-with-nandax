@@ -31,6 +31,16 @@ export class BrokerController {
     return this.brokerService.getConnectionsByUser(req.user.userId);
   }
 
+  @Get('accounts/all')
+  async getAllAccounts(@Request() req) {
+    return this.brokerService.getAllAccountsData(req.user.userId);
+  }
+
+  @Get('accounts/active')
+  async getActiveAccounts(@Request() req) {
+    return this.brokerService.getActiveConnections(req.user.userId);
+  }
+
   @Get('connection/:id')
   async getConnection(@Param('id') id: string) {
     return this.brokerService.getConnectionById(id);

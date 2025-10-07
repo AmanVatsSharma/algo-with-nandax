@@ -96,6 +96,8 @@ export const tradesApi = {
 
 export const brokerApi = {
   getConnections: () => api.get('/broker/connections'),
+  getAllAccounts: () => api.get('/broker/accounts/all'),
+  getActiveAccounts: () => api.get('/broker/accounts/active'),
   createConnection: (data: { brokerType: string; apiKey: string }) =>
     api.post('/broker/connection', data),
   deleteConnection: (id: string) => api.delete(`/broker/connection/${id}`),

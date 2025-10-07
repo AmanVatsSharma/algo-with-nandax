@@ -30,7 +30,55 @@ export class BrokerService {
   async getConnectionsByUser(userId: string): Promise<BrokerConnection[]> {
     return this.brokerConnectionRepository.find({
       where: { userId },
+      order: { createdAt: 'DESC' },
     });
+  }
+
+  async getActiveConnections(userId: string): Promise<BrokerConnection[]> {
+    return this.brokerConnectionRepository.find({
+      where: {
+        userId,
+        status: ConnectionStatus.CONNECTED,
+      },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getAllAccountsData(userId: string): Promise<any[]> {
+    const connections = await this.getActiveConnections(userId);
+    
+    const accountsData = await Promise.all(
+      connections.map(async (connection) => {
+        try {
+          const [profile, positions, holdings, margins] = await Promise.all([
+            this.kiteService.getProfile(connection.accessToken),
+            this.kiteService.getPositions(connection.accessToken),
+            this.kiteService.getHoldings(connection.accessToken),
+            this.kiteService.getMargins(connection.accessToken),
+          ]);
+
+          return {
+            connectionId: connection.id,
+            brokerType: connection.brokerType,
+            status: connection.status,
+            profile,
+            positions,
+            holdings,
+            margins,
+            lastSynced: new Date(),
+          };
+        } catch (error) {
+          return {
+            connectionId: connection.id,
+            brokerType: connection.brokerType,
+            status: ConnectionStatus.ERROR,
+            error: error.message,
+          };
+        }
+      }),
+    );
+
+    return accountsData;
   }
 
   async getConnectionById(connectionId: string): Promise<BrokerConnection> {

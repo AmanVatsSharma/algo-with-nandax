@@ -9,13 +9,15 @@
 ### Key Features
 
 - 🤖 **AI-Powered Trading Agents** - Deploy intelligent agents that learn and adapt to market conditions
+- 💼 **Multiple Account Support** - Connect and manage UNLIMITED Zerodha trading accounts
+- 🎨 **Futuristic Animated UI** - World-class dashboard with smooth animations and real-time visualizations
 - 📊 **Strategy Builder** - Create and backtest custom trading strategies
 - 📈 **Real-time Market Data** - Live quotes, OHLC data, and WebSocket streaming
-- 💼 **Portfolio Management** - Track positions, holdings, and performance metrics
-- 🔐 **Secure Broker Integration** - Seamless Zerodha Kite authentication and API integration
-- ⚡ **Job Queue Processing** - Background jobs for trade execution and data processing
+- ⚡ **Automated Trading** - AI agents trade automatically 24/7 based on your strategies
+- 🔐 **Secure OAuth Integration** - Bank-level security with Zerodha Kite OAuth 2.0
 - 🔄 **Real-time Updates** - WebSocket notifications for trades, agents, and market data
-- 📱 **Modern UI** - Beautiful, responsive interface built with Next.js and Tailwind CSS
+- 📊 **Live Trading Terminal** - Professional command center with glowing effects and animations
+- 💰 **Multi-Account P&L Tracking** - Consolidated view of all accounts and agent performance
 
 ## 🏗️ Architecture
 
