@@ -15,6 +15,7 @@ import { AgentsModule } from './modules/agents/agents.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { MarketDataModule } from './modules/market-data/market-data.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 // Config
 import { typeOrmConfig } from './config/typeorm.config';
@@ -66,6 +67,7 @@ import { typeOrmConfig } from './config/typeorm.config';
     PortfolioModule,
     MarketDataModule,
     WebsocketModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
