@@ -5,6 +5,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AgentsService } from '../agents.service';
 import { AgentStatus, AgentType } from '../entities/agent.entity';
 import { getErrorMessage } from '@/common/utils/error.utils';
+import { AIDecisionService } from './ai-decision.service';
 
 @Injectable()
 export class AgentExecutor {
@@ -22,6 +23,7 @@ export class AgentExecutor {
   constructor(
     @InjectQueue('agents') private readonly agentsQueue: Queue,
     private readonly agentsService: AgentsService,
+    private readonly aiDecisionService: AIDecisionService,
   ) {}
 
   /**
@@ -132,22 +134,25 @@ export class AgentExecutor {
     agentId: string,
     marketData: any,
     strategyConfig: any,
+    agentContext?: {
+      aiModelName?: string;
+      aiModelConfig?: Record<string, unknown>;
+    },
   ): Promise<{ action: 'buy' | 'sell' | 'hold'; confidence: number; metadata?: any }> {
-    // This is a placeholder for AI/ML model integration
-    // In production, this would call your trained AI model
-    
     this.logger.log(`Making AI decision for agent ${agentId}`);
-    
-    // Simulate AI decision (replace with actual AI model)
-    const decision = {
-      action: 'hold' as 'buy' | 'sell' | 'hold',
-      confidence: 0.5,
-      metadata: {
-        indicators: {},
-        signals: [],
-      },
-    };
 
-    return decision;
+    const decision = this.aiDecisionService.decide({
+      agentId,
+      marketData,
+      strategyConfig,
+      aiModelName: agentContext?.aiModelName,
+      aiModelConfig: agentContext?.aiModelConfig,
+    });
+
+    return {
+      action: decision.action,
+      confidence: decision.confidence,
+      metadata: decision.metadata,
+    };
   }
 }

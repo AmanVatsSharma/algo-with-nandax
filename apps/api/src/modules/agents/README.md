@@ -30,6 +30,19 @@ flowchart TD
   - or `autoTrade=false`,
   - or quote/LTP is missing.
 
-## Current limitation
+## AI provider abstraction (baseline)
 
-- AI decision engine is still baseline placeholder and should be replaced with provider abstractions in later phases.
+- Added provider registry with deterministic adapters:
+  - `openai`
+  - `anthropic`
+  - `heuristic` fallback
+- Provider selection sources (in order):
+  1. strategy configuration `aiProvider`
+  2. agent model config provider
+  3. agent model name prefix (`provider:model`)
+  4. fallback `heuristic`
+- Every decision now includes provider metadata for traceability.
+
+## Remaining limitation
+
+- External live LLM calls, latency-aware retries, and cost accounting are still pending.

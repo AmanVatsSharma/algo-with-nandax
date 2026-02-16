@@ -108,6 +108,10 @@ export class AgentProcessor {
           agentId,
           marketData,
           strategyConfig,
+          {
+            aiModelName: agent.aiModelName,
+            aiModelConfig: agent.aiModelConfig,
+          },
         );
 
         decision = {
