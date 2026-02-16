@@ -9,18 +9,23 @@ export default function AIGovernancePage() {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
   const [summary, setSummary] = useState<any>(null);
+  const [ledger, setLedger] = useState<any>(null);
   const [days, setDays] = useState('30');
 
   const fetchSummary = async () => {
     setLoading(true);
     setErrorMessage('');
     try {
-      const response = await agentsApi.getGovernanceSummary(Number(days));
+      const [summaryResponse, ledgerResponse] = await Promise.all([
+        agentsApi.getGovernanceSummary(Number(days)),
+        agentsApi.getGovernanceLedger(Number(days)),
+      ]);
       console.log('ai-governance-summary-fetch-result', {
         days: Number(days),
-        totalDecisions: response.data?.totals?.totalDecisions ?? 0,
+        totalDecisions: summaryResponse.data?.totals?.totalDecisions ?? 0,
       });
-      setSummary(response.data);
+      setSummary(summaryResponse.data);
+      setLedger(ledgerResponse.data);
     } catch (error: any) {
       console.error('ai-governance-summary-fetch-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to load AI governance summary');
@@ -108,6 +113,13 @@ export default function AIGovernancePage() {
                 <StatBlock title="Provider stats" data={summary.providerStats ?? []} />
                 <StatBlock title="Mode stats" data={summary.modeStats ?? []} />
                 <StatBlock title="Action breakdown" data={summary.actionBreakdown ?? []} />
+              </div>
+
+              <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
+                <p className="text-sm font-semibold mb-2">AI cost ledger (daily rollup)</p>
+                <pre className="text-xs overflow-auto bg-slate-900 border border-slate-700 rounded p-3">
+                  {JSON.stringify(ledger, null, 2)}
+                </pre>
               </div>
 
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">

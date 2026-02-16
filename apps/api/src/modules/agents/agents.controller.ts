@@ -13,6 +13,7 @@ import {
 import { AgentsService } from './agents.service';
 import { AgentExecutor } from './services/agent-executor.service';
 import { AIDecisionLogService } from './services/ai-decision-log.service';
+import { AICostLedgerService } from './services/ai-cost-ledger.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
@@ -26,6 +27,7 @@ export class AgentsController {
     private readonly agentsService: AgentsService,
     private readonly agentExecutor: AgentExecutor,
     private readonly aiDecisionLogService: AIDecisionLogService,
+    private readonly aiCostLedgerService: AICostLedgerService,
   ) {}
 
   @Post()
@@ -42,6 +44,11 @@ export class AgentsController {
   @Get('governance/summary')
   async getAIGovernanceSummary(@Request() req, @Query() query: GetAIGovernanceSummaryDto) {
     return this.aiDecisionLogService.getGovernanceSummary(req.user.userId, query.days ?? 30);
+  }
+
+  @Get('governance/ledger')
+  async getAICostLedger(@Request() req, @Query() query: GetAIGovernanceSummaryDto) {
+    return this.aiCostLedgerService.getUserLedger(req.user.userId, query.days ?? 30);
   }
 
   @Get(':id')

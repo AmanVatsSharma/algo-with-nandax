@@ -50,6 +50,9 @@ flowchart TD
 - API endpoint for audit-style review:
   - `GET /api/v1/agents/:id/decision-logs?limit=100`
   - `GET /api/v1/agents/governance/summary?days=30`
+  - `GET /api/v1/agents/governance/ledger?days=30`
+- Hourly ledger rebuild scheduler aggregates daily AI usage/cost:
+  - `AI_COST_LEDGER_SCHEDULER_ENABLED=true`
 
 ## Remaining limitation
 

@@ -81,6 +81,8 @@ export const agentsApi = {
     api.get(`/agents/${id}/decision-logs?limit=${limit}`),
   getGovernanceSummary: (days: number = 30) =>
     api.get(`/agents/governance/summary?days=${days}`),
+  getGovernanceLedger: (days: number = 30) =>
+    api.get(`/agents/governance/ledger?days=${days}`),
   create: (data: any) => api.post('/agents', data),
   update: (id: string, data: any) => api.patch(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),
