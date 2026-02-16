@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { Trade, TradeStatus, OrderStatus } from './entities/trade.entity';
+import { Trade, TradeStatus, OrderStatus, OrderSide } from './entities/trade.entity';
 
 @Injectable()
 export class TradingService {
@@ -116,8 +116,8 @@ export class TradingService {
     // Calculate P&L
     const quantity = trade.quantity;
     const entryPrice = trade.executedEntryPrice || trade.entryPrice;
-    const pnl = (executedPrice - entryPrice) * quantity;
-    const netPnL = pnl - trade.fees;
+    const pnl = this.calculatePnL(trade.side, entryPrice, executedPrice, quantity);
+    const netPnL = pnl - Number(trade.fees);
 
     await this.tradeRepository.update(tradeId, {
       exitOrderId: orderId,
@@ -141,7 +141,12 @@ export class TradingService {
     }
 
     const entryPrice = trade.executedEntryPrice || trade.entryPrice;
-    const unrealizedPnL = (currentPrice - entryPrice) * trade.quantity;
+    const unrealizedPnL = this.calculatePnL(
+      trade.side,
+      entryPrice,
+      currentPrice,
+      trade.quantity,
+    );
 
     await this.tradeRepository.update(tradeId, { unrealizedPnL });
   }
@@ -171,5 +176,19 @@ export class TradingService {
       totalPnL,
       winRate,
     };
+  }
+
+  private calculatePnL(
+    side: OrderSide,
+    entryPrice: number,
+    exitPrice: number,
+    quantity: number,
+  ): number {
+    // BUY profit when price increases, SELL (short) profit when price decreases.
+    if (side === OrderSide.SELL) {
+      return (entryPrice - exitPrice) * quantity;
+    }
+
+    return (exitPrice - entryPrice) * quantity;
   }
 }

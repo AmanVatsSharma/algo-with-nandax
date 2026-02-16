@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Portfolio } from './entities/portfolio.entity';
-import { Position, PositionStatus } from './entities/position.entity';
+import { Position, PositionStatus, PositionType } from './entities/position.entity';
 
 @Injectable()
 export class PortfolioService {
@@ -117,7 +117,10 @@ export class PortfolioService {
       throw new NotFoundException('Position not found');
     }
 
-    const unrealizedPnL = (currentPrice - Number(position.averagePrice)) * position.quantity;
+    const unrealizedPnL =
+      position.type === PositionType.SHORT
+        ? (Number(position.averagePrice) - currentPrice) * position.quantity
+        : (currentPrice - Number(position.averagePrice)) * position.quantity;
 
     await this.positionRepository.update(id, {
       status: PositionStatus.CLOSED,
@@ -135,7 +138,10 @@ export class PortfolioService {
       return;
     }
 
-    const unrealizedPnL = (currentPrice - Number(position.averagePrice)) * position.quantity;
+    const unrealizedPnL =
+      position.type === PositionType.SHORT
+        ? (Number(position.averagePrice) - currentPrice) * position.quantity
+        : (currentPrice - Number(position.averagePrice)) * position.quantity;
 
     await this.positionRepository.update(positionId, {
       currentPrice,
