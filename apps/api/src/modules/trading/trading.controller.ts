@@ -13,6 +13,7 @@ import { TradeExecutor } from './services/trade-executor.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ExecuteTradeDto } from './dto/execute-trade.dto';
 import { CloseTradeDto } from './dto/close-trade.dto';
+import { Audit } from '../audit/decorators/audit.decorator';
 
 @Controller('trades')
 @UseGuards(JwtAuthGuard)
@@ -23,6 +24,7 @@ export class TradingController {
   ) {}
 
   @Post()
+  @Audit({ action: 'trade.execute', resourceType: 'trade' })
   async executeTrade(@Request() req, @Body() body: ExecuteTradeDto) {
     return this.tradeExecutor.executeTrade(
       req.user.userId,
@@ -33,6 +35,7 @@ export class TradingController {
   }
 
   @Post(':id/close')
+  @Audit({ action: 'trade.close', resourceType: 'trade' })
   async closeTrade(
     @Request() req,
     @Param('id') id: string,

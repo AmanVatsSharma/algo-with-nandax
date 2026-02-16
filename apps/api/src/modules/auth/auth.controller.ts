@@ -15,12 +15,14 @@ import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { Response } from 'express';
+import { Audit } from '../audit/decorators/audit.decorator';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
+  @Audit({ action: 'auth.register', resourceType: 'user' })
   async register(@Body() registerDto: RegisterDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.register(registerDto);
     this.setRefreshTokenCookie(res, result.refreshToken);
@@ -33,6 +35,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
+  @Audit({ action: 'auth.login', resourceType: 'user' })
   async login(@Body() loginDto: LoginDto, @Res({ passthrough: true }) res: Response) {
     const result = await this.authService.login(loginDto);
     this.setRefreshTokenCookie(res, result.refreshToken);
@@ -46,6 +49,7 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @Audit({ action: 'auth.logout', resourceType: 'user' })
   async logout(@Request() req, @Res({ passthrough: true }) res: Response) {
     this.clearRefreshTokenCookie(res);
     return this.authService.logout(req.user.userId);
@@ -53,6 +57,7 @@ export class AuthController {
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
+  @Audit({ action: 'auth.refresh', resourceType: 'user' })
   async refreshTokens(
     @Body() refreshTokenDto: RefreshTokenDto,
     @Request() req,

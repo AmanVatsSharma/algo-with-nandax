@@ -15,6 +15,7 @@ import { CreateConnectionDto } from './dto/create-connection.dto';
 import { ConnectKiteDto } from './dto/connect-kite.dto';
 import { PlaceKiteOrderDto } from './dto/place-kite-order.dto';
 import { GetKiteLoginUrlDto } from './dto/get-kite-login-url.dto';
+import { Audit } from '../audit/decorators/audit.decorator';
 
 @Controller('broker')
 @UseGuards(JwtAuthGuard)
@@ -22,6 +23,7 @@ export class BrokerController {
   constructor(private readonly brokerService: BrokerService) {}
 
   @Post('connection')
+  @Audit({ action: 'broker.connection.create', resourceType: 'broker_connection' })
   async createConnection(
     @Request() req,
     @Body() body: CreateConnectionDto,
@@ -50,6 +52,7 @@ export class BrokerController {
   }
 
   @Delete('connection/:id')
+  @Audit({ action: 'broker.connection.delete', resourceType: 'broker_connection' })
   async deleteConnection(@Param('id') id: string, @Request() req) {
     await this.brokerService.deleteConnection(id, req.user.userId);
     return { message: 'Connection deleted successfully' };
@@ -63,6 +66,7 @@ export class BrokerController {
   }
 
   @Post('kite/connect')
+  @Audit({ action: 'broker.kite.connect', resourceType: 'broker_connection' })
   async connectKite(
     @Request() req,
     @Body() body: ConnectKiteDto,
@@ -91,6 +95,7 @@ export class BrokerController {
   }
 
   @Post('kite/order/:connectionId')
+  @Audit({ action: 'broker.kite.order.place', resourceType: 'broker_order' })
   async placeKiteOrder(
     @Param('connectionId') connectionId: string,
     @Request() req,

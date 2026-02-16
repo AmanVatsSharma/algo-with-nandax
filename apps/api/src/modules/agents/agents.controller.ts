@@ -14,6 +14,7 @@ import { AgentExecutor } from './services/agent-executor.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
+import { Audit } from '../audit/decorators/audit.decorator';
 
 @Controller('agents')
 @UseGuards(JwtAuthGuard)
@@ -24,6 +25,7 @@ export class AgentsController {
   ) {}
 
   @Post()
+  @Audit({ action: 'agent.create', resourceType: 'agent' })
   async create(@Request() req, @Body() agentData: CreateAgentDto) {
     return this.agentsService.create(req.user.userId, agentData);
   }
@@ -39,11 +41,13 @@ export class AgentsController {
   }
 
   @Patch(':id')
+  @Audit({ action: 'agent.update', resourceType: 'agent' })
   async update(@Param('id') id: string, @Request() req, @Body() updateData: UpdateAgentDto) {
     return this.agentsService.update(id, req.user.userId, updateData);
   }
 
   @Post(':id/start')
+  @Audit({ action: 'agent.start', resourceType: 'agent' })
   async startAgent(@Param('id') id: string, @Request() req) {
     await this.agentsService.findByIdAndUser(id, req.user.userId);
     await this.agentExecutor.startAgent(id);
@@ -51,6 +55,7 @@ export class AgentsController {
   }
 
   @Post(':id/stop')
+  @Audit({ action: 'agent.stop', resourceType: 'agent' })
   async stopAgent(@Param('id') id: string, @Request() req) {
     await this.agentsService.findByIdAndUser(id, req.user.userId);
     await this.agentExecutor.stopAgent(id);
@@ -58,6 +63,7 @@ export class AgentsController {
   }
 
   @Post(':id/pause')
+  @Audit({ action: 'agent.pause', resourceType: 'agent' })
   async pauseAgent(@Param('id') id: string, @Request() req) {
     await this.agentsService.findByIdAndUser(id, req.user.userId);
     await this.agentExecutor.pauseAgent(id);
@@ -65,6 +71,7 @@ export class AgentsController {
   }
 
   @Delete(':id')
+  @Audit({ action: 'agent.delete', resourceType: 'agent' })
   async delete(@Param('id') id: string, @Request() req) {
     await this.agentsService.delete(id, req.user.userId);
     return { message: 'Agent deleted successfully' };
