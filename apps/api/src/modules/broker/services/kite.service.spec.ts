@@ -62,4 +62,50 @@ describe('KiteService', () => {
     expect(config.headers['Content-Type']).toBe('application/x-www-form-urlencoded');
     expect(result.access_token).toBe('test-access-token');
   });
+
+  it('fetches tradebook snapshot from /trades endpoint', async () => {
+    httpService.get.mockReturnValue(
+      of({
+        data: {
+          status: 'success',
+          data: [{ order_id: 'order-1', quantity: 2, price: 101 }],
+        },
+      } as any),
+    );
+
+    const result = await service.getTrades('access-token', 'api-key');
+
+    expect(httpService.get).toHaveBeenCalledWith(
+      expect.stringContaining('/trades'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'token api-key:access-token',
+        }),
+      }),
+    );
+    expect(result).toHaveLength(1);
+  });
+
+  it('fetches order trades from /orders/:id/trades endpoint', async () => {
+    httpService.get.mockReturnValue(
+      of({
+        data: {
+          status: 'success',
+          data: [{ order_id: 'order-2', quantity: 5, price: 100.25 }],
+        },
+      } as any),
+    );
+
+    const result = await service.getOrderTrades('access-token', 'order-2', 'api-key');
+
+    expect(httpService.get).toHaveBeenCalledWith(
+      expect.stringContaining('/orders/order-2/trades'),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          Authorization: 'token api-key:access-token',
+        }),
+      }),
+    );
+    expect(result[0].order_id).toBe('order-2');
+  });
 });

@@ -37,6 +37,17 @@ export interface KiteOrderEntry {
   status_message?: string;
 }
 
+export interface KiteTradeEntry {
+  order_id: string;
+  trade_id?: string;
+  quantity: number;
+  price?: number;
+  average_price?: number;
+  fill_timestamp?: string;
+  exchange_timestamp?: string;
+  order_timestamp?: string;
+}
+
 @Injectable()
 export class KiteService {
   private readonly logger = new Logger(KiteService.name);
@@ -185,6 +196,43 @@ export class KiteService {
       return response.data.data ?? [];
     } catch (error) {
       this.logKiteError('getOrders', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get trades (tradebook snapshot for current day).
+   */
+  async getTrades(accessToken: string, apiKey?: string) {
+    try {
+      const response = await firstValueFrom<AxiosResponse<KiteApiResponse<KiteTradeEntry[]>>>(
+        this.httpService.get<KiteApiResponse<KiteTradeEntry[]>>(`${this.baseUrl}/trades`, {
+          headers: this.getHeaders(accessToken, apiKey),
+        }),
+      );
+      return response.data.data ?? [];
+    } catch (error) {
+      this.logKiteError('getTrades', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get trades for a specific order id.
+   */
+  async getOrderTrades(accessToken: string, orderId: string, apiKey?: string) {
+    try {
+      const response = await firstValueFrom<AxiosResponse<KiteApiResponse<KiteTradeEntry[]>>>(
+        this.httpService.get<KiteApiResponse<KiteTradeEntry[]>>(
+          `${this.baseUrl}/orders/${orderId}/trades`,
+          {
+            headers: this.getHeaders(accessToken, apiKey),
+          },
+        ),
+      );
+      return response.data.data ?? [];
+    } catch (error) {
+      this.logKiteError('getOrderTrades', error);
       throw error;
     }
   }

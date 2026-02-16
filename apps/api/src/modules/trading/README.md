@@ -24,6 +24,7 @@ Trading module handles trade lifecycle APIs, queued broker execution, and order 
    - Worker groups by user+connection and reconciles from one broker orders snapshot per group.
    - Partial fills are detected and persisted as `partially_filled` with fill-state metadata.
    - Entry/exit fill rollups are appended in metadata (`entryFillRollup`/`exitFillRollup`) with delta-filled snapshots for later audit/debug.
+   - Tradebook snapshot enrichment (`/trades`, `/orders/:id/trades`) is used to compute weighted average fill prices and multi-fill quantities.
 
 ## Execution flow (simplified)
 

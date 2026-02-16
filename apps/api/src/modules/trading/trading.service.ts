@@ -1,10 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, In, FindOptionsWhere } from 'typeorm';
 import { Trade, TradeStatus, OrderStatus, OrderSide } from './entities/trade.entity';
 import { BrokerService } from '../broker/broker.service';
 import { getErrorMessage } from '@/common/utils/error.utils';
-import { KiteOrderEntry, KiteOrderHistoryEntry } from '../broker/services/kite.service';
+import {
+  KiteOrderEntry,
+  KiteOrderHistoryEntry,
+  KiteTradeEntry,
+} from '../broker/services/kite.service';
 
 const PENDING_RECONCILIATION_STATUSES: OrderStatus[] = [
   OrderStatus.PLACED,
@@ -28,8 +32,16 @@ type KiteOrderStateLike = Pick<
 > &
   Partial<Pick<KiteOrderHistoryEntry, 'order_timestamp' | 'exchange_timestamp'>>;
 
+interface AggregatedTradebookFill {
+  filledQuantity: number;
+  pendingQuantity: number;
+  averagePrice?: number;
+}
+
 @Injectable()
 export class TradingService {
+  private readonly logger = new Logger(TradingService.name);
+
   constructor(
     @InjectRepository(Trade)
     private readonly tradeRepository: Repository<Trade>,
@@ -346,6 +358,9 @@ export class TradingService {
         });
 
     const result = this.createReconciliationResult();
+    this.logger.debug(
+      `manual-reconcile-start: user=${userId} trades=${trades.length} scope=${payload.connectionId ?? 'all'}`,
+    );
 
     for (const trade of trades) {
       const isExitOrderPending = trade.status === TradeStatus.OPEN && Boolean(trade.exitOrderId);
@@ -367,6 +382,7 @@ export class TradingService {
           trade.connectionId,
           orderId,
         );
+        const orderTrades = await this.getOrderTradesSafe(userId, trade.connectionId, orderId);
         if (!latestState) {
           result.open += 1;
           result.details.push({
@@ -384,6 +400,7 @@ export class TradingService {
           orderId,
           isExitOrderPending,
           latestState,
+          orderTrades,
           result,
         });
       } catch (error) {
@@ -396,6 +413,9 @@ export class TradingService {
       }
     }
 
+    this.logger.debug(
+      `manual-reconcile-complete: user=${userId} processed=${result.processed} executed=${result.executed} partial=${result.partiallyFilled} failed=${result.failed}`,
+    );
     return result;
   }
 
@@ -423,7 +443,13 @@ export class TradingService {
     }
 
     const orders = await this.brokerService.getKiteOrders(userId, payload.connectionId);
+    const tradesSnapshot = await this.getConnectionTradesSafe(userId, payload.connectionId);
     const latestStateByOrderId = this.buildLatestStateByOrderId(orders);
+    const tradesByOrderId = this.groupTradesByOrderId(tradesSnapshot);
+
+    this.logger.debug(
+      `snapshot-reconcile-start: user=${userId} connection=${payload.connectionId} orders=${orders.length} tradebookRows=${tradesSnapshot.length} pending=${trades.length}`,
+    );
 
     for (const trade of trades) {
       const isExitOrderPending = trade.status === TradeStatus.OPEN && Boolean(trade.exitOrderId);
@@ -458,6 +484,7 @@ export class TradingService {
           orderId,
           isExitOrderPending,
           latestState,
+          orderTrades: tradesByOrderId.get(orderId) ?? [],
           result,
         });
       } catch (error) {
@@ -471,6 +498,9 @@ export class TradingService {
       }
     }
 
+    this.logger.debug(
+      `snapshot-reconcile-complete: user=${userId} connection=${payload.connectionId} processed=${result.processed} executed=${result.executed} partial=${result.partiallyFilled} failed=${result.failed}`,
+    );
     return result;
   }
 
@@ -485,6 +515,42 @@ export class TradingService {
       failed: 0,
       details: [],
     };
+  }
+
+  private async getConnectionTradesSafe(userId: string, connectionId: string) {
+    try {
+      return await this.brokerService.getKiteTrades(userId, connectionId);
+    } catch (error) {
+      this.logger.warn(
+        `tradebook-snapshot-fetch-failed: user=${userId} connection=${connectionId} reason=${getErrorMessage(error)}`,
+      );
+      return [];
+    }
+  }
+
+  private async getOrderTradesSafe(userId: string, connectionId: string, orderId: string) {
+    try {
+      return await this.brokerService.getKiteOrderTrades(userId, connectionId, orderId);
+    } catch (error) {
+      this.logger.warn(
+        `order-tradebook-fetch-failed: user=${userId} connection=${connectionId} orderId=${orderId} reason=${getErrorMessage(error)}`,
+      );
+      return [];
+    }
+  }
+
+  private groupTradesByOrderId(trades: KiteTradeEntry[]) {
+    const grouped = new Map<string, KiteTradeEntry[]>();
+    for (const trade of trades ?? []) {
+      const orderId = String(trade.order_id ?? '').trim();
+      if (!orderId) {
+        continue;
+      }
+      const existing = grouped.get(orderId) ?? [];
+      existing.push(trade);
+      grouped.set(orderId, existing);
+    }
+    return grouped;
   }
 
   private buildLatestStateByOrderId(orders: KiteOrderEntry[]) {
@@ -508,17 +574,79 @@ export class TradingService {
     return map;
   }
 
+  private aggregateTradebookFill(input: {
+    orderTrades: KiteTradeEntry[];
+    fallbackFilledQuantity: number;
+    fallbackPendingQuantity: number;
+    fallbackAveragePrice: number;
+  }): AggregatedTradebookFill {
+    const validTrades = (input.orderTrades ?? []).filter((trade) => {
+      const quantity = Number(trade.quantity ?? 0);
+      return Number.isFinite(quantity) && quantity > 0;
+    });
+
+    if (!validTrades.length) {
+      return {
+        filledQuantity: input.fallbackFilledQuantity,
+        pendingQuantity: input.fallbackPendingQuantity,
+        averagePrice: input.fallbackAveragePrice,
+      };
+    }
+
+    const filledQuantity = validTrades.reduce(
+      (sum, trade) => sum + Number(trade.quantity ?? 0),
+      0,
+    );
+
+    const weightedPriceAndQuantity = validTrades.reduce(
+      (accumulator, trade) => {
+        const quantity = Number(trade.quantity ?? 0);
+        const tradePrice = Number(trade.price ?? trade.average_price ?? 0);
+        if (quantity > 0 && Number.isFinite(tradePrice) && tradePrice > 0) {
+          accumulator.priceQuantity += tradePrice * quantity;
+          accumulator.quantity += quantity;
+        }
+        return accumulator;
+      },
+      { priceQuantity: 0, quantity: 0 },
+    );
+
+    const averagePrice =
+      weightedPriceAndQuantity.quantity > 0
+        ? weightedPriceAndQuantity.priceQuantity / weightedPriceAndQuantity.quantity
+        : input.fallbackAveragePrice;
+    const fallbackTotalQuantity =
+      Number(input.fallbackFilledQuantity ?? 0) + Number(input.fallbackPendingQuantity ?? 0);
+    const pendingQuantity =
+      fallbackTotalQuantity > 0
+        ? Math.max(fallbackTotalQuantity - filledQuantity, 0)
+        : Math.max(Number(input.fallbackPendingQuantity ?? 0), 0);
+
+    return {
+      filledQuantity,
+      pendingQuantity,
+      averagePrice,
+    };
+  }
+
   private async applyOrderStateToTrade(input: {
     trade: Trade;
     orderId: string;
     isExitOrderPending: boolean;
     latestState: KiteOrderStateLike;
+    orderTrades: KiteTradeEntry[];
     result: ReconciliationResult;
   }) {
     const status = String(input.latestState?.status ?? '').toLowerCase();
-    const filledQuantity = Number(input.latestState?.filled_quantity ?? 0);
-    const pendingQuantity = Number(input.latestState?.pending_quantity ?? 0);
-    const averagePrice = Number(input.latestState?.average_price ?? 0);
+    const tradebookFill = this.aggregateTradebookFill({
+      orderTrades: input.orderTrades,
+      fallbackFilledQuantity: Number(input.latestState?.filled_quantity ?? 0),
+      fallbackPendingQuantity: Number(input.latestState?.pending_quantity ?? 0),
+      fallbackAveragePrice: Number(input.latestState?.average_price ?? 0),
+    });
+    const filledQuantity = Number(tradebookFill.filledQuantity ?? 0);
+    const pendingQuantity = Number(tradebookFill.pendingQuantity ?? 0);
+    const averagePrice = Number(tradebookFill.averagePrice ?? 0);
     const resolvedPrice =
       Number.isFinite(averagePrice) && averagePrice > 0
         ? averagePrice
