@@ -12,6 +12,9 @@ describe('AIDecisionService', () => {
   const aiGovernancePolicyServiceMock = {
     evaluateLiveInferencePolicy: jest.fn(async () => ({ allowed: true } as any)),
   };
+  const aiGovernanceEventServiceMock = {
+    logEvent: jest.fn(async () => null),
+  };
 
   let service: AIDecisionService;
 
@@ -26,10 +29,12 @@ describe('AIDecisionService', () => {
     aiGovernancePolicyServiceMock.evaluateLiveInferencePolicy.mockResolvedValue({
       allowed: true,
     });
+    aiGovernanceEventServiceMock.logEvent.mockResolvedValue(null);
     service = new AIDecisionService(
       httpServiceMock as any,
       configServiceMock as any,
       aiGovernancePolicyServiceMock as any,
+      aiGovernanceEventServiceMock as any,
     );
   });
 
@@ -93,6 +98,7 @@ describe('AIDecisionService', () => {
       httpServiceMock as any,
       configServiceMock as any,
       aiGovernancePolicyServiceMock as any,
+      aiGovernanceEventServiceMock as any,
     );
 
     const result = await service.decide({
@@ -144,6 +150,7 @@ describe('AIDecisionService', () => {
       httpServiceMock as any,
       configServiceMock as any,
       aiGovernancePolicyServiceMock as any,
+      aiGovernanceEventServiceMock as any,
     );
     const result = await service.decide({
       userId: 'user-1',
@@ -162,6 +169,12 @@ describe('AIDecisionService', () => {
     expect(result.metadata.mode).toBe('live');
     expect(result.action).toBe('buy');
     expect(httpServiceMock.post).toHaveBeenCalledTimes(1);
+    expect(aiGovernanceEventServiceMock.logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'live-policy-allow',
+        blocked: false,
+      }),
+    );
   });
 
   it('blocks live mode when governance policy denies budget', async () => {
@@ -182,6 +195,7 @@ describe('AIDecisionService', () => {
       httpServiceMock as any,
       configServiceMock as any,
       aiGovernancePolicyServiceMock as any,
+      aiGovernanceEventServiceMock as any,
     );
 
     const result = await service.decide({
@@ -200,5 +214,12 @@ describe('AIDecisionService', () => {
 
     expect(result.metadata.mode).toBe('deterministic');
     expect(httpServiceMock.post).not.toHaveBeenCalled();
+    expect(aiGovernanceEventServiceMock.logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'live-policy-block',
+        blocked: true,
+        reason: 'daily-cost-budget-exceeded',
+      }),
+    );
   });
 });

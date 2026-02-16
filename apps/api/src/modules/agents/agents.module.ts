@@ -8,6 +8,7 @@ import { AgentExecutor } from './services/agent-executor.service';
 import { AIDecisionService } from './services/ai-decision.service';
 import { AIDecisionLogService } from './services/ai-decision-log.service';
 import { AIGovernancePolicyService } from './services/ai-governance-policy.service';
+import { AIGovernanceEventService } from './services/ai-governance-event.service';
 import { AICostLedgerService } from './services/ai-cost-ledger.service';
 import { AICostLedgerScheduler } from './services/ai-cost-ledger.scheduler';
 import { AgentProcessor } from './processors/agent.processor';
@@ -15,6 +16,7 @@ import { Agent } from './entities/agent.entity';
 import { AIDecisionLog } from './entities/ai-decision-log.entity';
 import { AICostLedger } from './entities/ai-cost-ledger.entity';
 import { AIGovernanceProfile } from './entities/ai-governance-profile.entity';
+import { AIGovernanceEvent } from './entities/ai-governance-event.entity';
 import { StrategyModule } from '../strategy/strategy.module';
 import { TradingModule } from '../trading/trading.module';
 import { BrokerModule } from '../broker/broker.module';
@@ -22,7 +24,13 @@ import { RiskModule } from '../risk/risk.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Agent, AIDecisionLog, AICostLedger, AIGovernanceProfile]),
+    TypeOrmModule.forFeature([
+      Agent,
+      AIDecisionLog,
+      AICostLedger,
+      AIGovernanceProfile,
+      AIGovernanceEvent,
+    ]),
     BullModule.registerQueue({
       name: 'agents',
     }),
@@ -40,6 +48,7 @@ import { RiskModule } from '../risk/risk.module';
     AIDecisionService,
     AIDecisionLogService,
     AIGovernancePolicyService,
+    AIGovernanceEventService,
     AICostLedgerService,
     AICostLedgerScheduler,
   ],

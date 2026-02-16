@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { getErrorMessage } from '@/common/utils/error.utils';
 import { AIGovernancePolicyService } from './ai-governance-policy.service';
+import { AIGovernanceEventService } from './ai-governance-event.service';
 
 type TradeAction = 'buy' | 'sell' | 'hold';
 
@@ -37,6 +38,7 @@ export class AIDecisionService {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
     private readonly aiGovernancePolicyService: AIGovernancePolicyService,
+    private readonly aiGovernanceEventService: AIGovernanceEventService,
   ) {
     // Register built-in deterministic providers. These providers are intentionally
     // lightweight so the system can run without external LLM dependencies.
@@ -80,12 +82,30 @@ export class AIDecisionService {
           providerKey,
         });
         if (!livePolicy.allowed) {
+          await this.logGovernanceEventSafe({
+            userId: context.userId,
+            agentId: context.agentId,
+            provider: providerKey,
+            eventType: 'live-policy-block',
+            blocked: true,
+            reason: livePolicy.reason,
+            metadata: livePolicy.metrics,
+          });
           this.logger.warn(
             `ai-live-policy-block: user=${context.userId} agent=${context.agentId} provider=${providerKey} reason=${livePolicy.reason}`,
           );
         } else {
           const liveDecision = await this.tryLiveProviderDecision(providerKey, context);
           if (liveDecision) {
+            await this.logGovernanceEventSafe({
+              userId: context.userId,
+              agentId: context.agentId,
+              provider: providerKey,
+              eventType: 'live-policy-allow',
+              blocked: false,
+              reason: 'allowed',
+              metadata: livePolicy.metrics,
+            });
             this.logger.log(
               `ai-decision: agent=${context.agentId} provider=${providerKey} mode=live action=${liveDecision.action} confidence=${liveDecision.confidence.toFixed(3)}`,
             );
@@ -646,5 +666,23 @@ export class AIDecisionService {
 
   private clamp(value: number, min: number, max: number) {
     return Math.min(Math.max(value, min), max);
+  }
+
+  private async logGovernanceEventSafe(payload: {
+    userId: string;
+    agentId?: string;
+    provider: string;
+    eventType: string;
+    blocked?: boolean;
+    reason?: string;
+    metadata?: Record<string, unknown>;
+  }) {
+    try {
+      await this.aiGovernanceEventService.logEvent(payload);
+    } catch (error) {
+      this.logger.warn(
+        `Failed logging AI governance event for agent=${payload.agentId ?? 'n/a'} provider=${payload.provider}: ${getErrorMessage(error)}`,
+      );
+    }
   }
 }

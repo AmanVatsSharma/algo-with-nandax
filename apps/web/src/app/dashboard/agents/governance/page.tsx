@@ -12,16 +12,18 @@ export default function AIGovernancePage() {
   const [summary, setSummary] = useState<any>(null);
   const [ledger, setLedger] = useState<any>(null);
   const [policy, setPolicy] = useState<any>(null);
+  const [events, setEvents] = useState<any[]>([]);
   const [days, setDays] = useState('30');
 
   const fetchSummary = async () => {
     setLoading(true);
     setErrorMessage('');
     try {
-      const [summaryResponse, ledgerResponse, policyResponse] = await Promise.all([
+      const [summaryResponse, ledgerResponse, policyResponse, eventsResponse] = await Promise.all([
         agentsApi.getGovernanceSummary(Number(days)),
         agentsApi.getGovernanceLedger(Number(days)),
         agentsApi.getGovernancePolicy(),
+        agentsApi.getGovernanceEvents(50),
       ]);
       console.log('ai-governance-summary-fetch-result', {
         days: Number(days),
@@ -30,6 +32,7 @@ export default function AIGovernancePage() {
       setSummary(summaryResponse.data);
       setLedger(ledgerResponse.data);
       setPolicy(policyResponse.data);
+      setEvents(eventsResponse.data ?? []);
     } catch (error: any) {
       console.error('ai-governance-summary-fetch-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to load AI governance summary');
@@ -253,6 +256,38 @@ export default function AIGovernancePage() {
                 >
                   {savingPolicy ? 'Saving policy...' : 'Save policy'}
                 </button>
+              </div>
+
+              <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
+                <p className="text-sm font-semibold mb-2">Recent governance events</p>
+                {events.length === 0 ? (
+                  <p className="text-xs text-slate-400">No recent governance events.</p>
+                ) : (
+                  <div className="space-y-2 text-xs">
+                    {events.map((event) => (
+                      <div
+                        key={event.id}
+                        className="rounded border border-slate-700 bg-slate-900 px-3 py-2"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-semibold text-slate-100">
+                            {event.eventType}
+                          </span>
+                          <span
+                            className={
+                              event.blocked ? 'text-rose-300 font-semibold' : 'text-emerald-300'
+                            }
+                          >
+                            {event.blocked ? 'BLOCKED' : 'ALLOWED'}
+                          </span>
+                        </div>
+                        <p className="text-slate-300 mt-1">
+                          provider={event.provider} {event.reason ? `| reason=${event.reason}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">

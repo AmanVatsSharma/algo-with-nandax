@@ -15,6 +15,7 @@ import { AgentExecutor } from './services/agent-executor.service';
 import { AIDecisionLogService } from './services/ai-decision-log.service';
 import { AICostLedgerService } from './services/ai-cost-ledger.service';
 import { AIGovernancePolicyService } from './services/ai-governance-policy.service';
+import { AIGovernanceEventService } from './services/ai-governance-event.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
@@ -31,6 +32,7 @@ export class AgentsController {
     private readonly aiDecisionLogService: AIDecisionLogService,
     private readonly aiCostLedgerService: AICostLedgerService,
     private readonly aiGovernancePolicyService: AIGovernancePolicyService,
+    private readonly aiGovernanceEventService: AIGovernanceEventService,
   ) {}
 
   @Post()
@@ -57,6 +59,12 @@ export class AgentsController {
   @Get('governance/policy')
   async getAIGovernancePolicy(@Request() req) {
     return this.aiGovernancePolicyService.getEffectivePolicy(req.user.userId);
+  }
+
+  @Get('governance/events')
+  async getAIGovernanceEvents(@Request() req, @Query('limit') limit?: string) {
+    const parsedLimit = limit ? Number(limit) : 100;
+    return this.aiGovernanceEventService.getRecentEvents(req.user.userId, parsedLimit);
   }
 
   @Patch('governance/policy')

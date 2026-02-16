@@ -57,6 +57,7 @@ flowchart TD
   - `GET /api/v1/agents/governance/summary?days=30`
   - `GET /api/v1/agents/governance/ledger?days=30`
   - `GET /api/v1/agents/governance/policy`
+  - `GET /api/v1/agents/governance/events?limit=50`
   - `PATCH /api/v1/agents/governance/policy`
 - Hourly ledger rebuild scheduler aggregates daily AI usage/cost:
   - `AI_COST_LEDGER_SCHEDULER_ENABLED=true`
@@ -64,6 +65,7 @@ flowchart TD
 ## Remaining limitation
 
 - Full policy governance is still evolving (current controls include profile-managed daily budget thresholds, but not organization-wide approval workflows).
+- Governance event trail is now persisted for live-policy allow/block outcomes.
 
 ## AI runtime configuration
 

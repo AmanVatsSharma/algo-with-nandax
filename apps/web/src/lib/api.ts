@@ -84,6 +84,8 @@ export const agentsApi = {
   getGovernanceLedger: (days: number = 30) =>
     api.get(`/agents/governance/ledger?days=${days}`),
   getGovernancePolicy: () => api.get('/agents/governance/policy'),
+  getGovernanceEvents: (limit: number = 100) =>
+    api.get(`/agents/governance/events?limit=${limit}`),
   updateGovernancePolicy: (data: {
     liveInferenceEnabled?: boolean;
     dailyCostBudgetUsd?: number;
