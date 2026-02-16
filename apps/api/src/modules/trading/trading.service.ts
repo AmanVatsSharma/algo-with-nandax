@@ -122,11 +122,20 @@ export class TradingService {
     executedPrice: number,
     orderId: string,
   ): Promise<Trade> {
+    const trade = await this.findById(tradeId);
+    const metadata = this.mergeCompletionFillMetadata({
+      trade,
+      fillSide: 'entry',
+      orderId,
+      averagePrice: executedPrice,
+    });
+
     await this.tradeRepository.update(tradeId, {
       entryOrderId: orderId,
       executedEntryPrice: executedPrice,
       entryTime: new Date(),
       orderStatus: OrderStatus.EXECUTED,
+      metadata: metadata as unknown as Record<string, any>,
     });
     return this.findById(tradeId);
   }
@@ -150,17 +159,11 @@ export class TradingService {
     },
   ): Promise<Trade> {
     const trade = await this.findById(tradeId);
-    const mergedMetadata = {
-      ...(trade.metadata ?? {}),
-      entryFillState: {
-        orderId: payload.orderId,
-        filledQuantity: payload.filledQuantity,
-        pendingQuantity: payload.pendingQuantity,
-        averagePrice: payload.averagePrice ?? null,
-        statusMessage: payload.statusMessage ?? null,
-        syncedAt: new Date().toISOString(),
-      },
-    };
+    const mergedMetadata = this.mergePartialFillMetadata({
+      trade,
+      fillSide: 'entry',
+      payload,
+    });
 
     await this.tradeRepository.update(tradeId, {
       entryOrderId: payload.orderId,
@@ -188,6 +191,12 @@ export class TradingService {
     const entryPrice = trade.executedEntryPrice || trade.entryPrice;
     const pnl = this.calculatePnL(trade.side, entryPrice, executedPrice, quantity);
     const netPnL = pnl - Number(trade.fees);
+    const mergedMetadata = this.mergeCompletionFillMetadata({
+      trade,
+      fillSide: 'exit',
+      orderId,
+      averagePrice: executedPrice,
+    });
 
     await this.tradeRepository.update(tradeId, {
       exitOrderId: orderId,
@@ -198,6 +207,7 @@ export class TradingService {
       status: TradeStatus.CLOSED,
       orderStatus: OrderStatus.EXECUTED,
       exitReason,
+      metadata: mergedMetadata as unknown as Record<string, any>,
     });
 
     return this.findById(tradeId);
@@ -224,17 +234,11 @@ export class TradingService {
     },
   ): Promise<Trade> {
     const trade = await this.findById(tradeId);
-    const mergedMetadata = {
-      ...(trade.metadata ?? {}),
-      exitFillState: {
-        orderId: payload.orderId,
-        filledQuantity: payload.filledQuantity,
-        pendingQuantity: payload.pendingQuantity,
-        averagePrice: payload.averagePrice ?? null,
-        statusMessage: payload.statusMessage ?? null,
-        syncedAt: new Date().toISOString(),
-      },
-    };
+    const mergedMetadata = this.mergePartialFillMetadata({
+      trade,
+      fillSide: 'exit',
+      payload,
+    });
 
     await this.tradeRepository.update(tradeId, {
       exitOrderId: payload.orderId,
@@ -633,5 +637,88 @@ export class TradingService {
     }
 
     return (exitPrice - entryPrice) * quantity;
+  }
+
+  private mergePartialFillMetadata(input: {
+    trade: Trade;
+    fillSide: 'entry' | 'exit';
+    payload: {
+      orderId: string;
+      averagePrice?: number;
+      filledQuantity: number;
+      pendingQuantity: number;
+      statusMessage?: string;
+    };
+  }) {
+    const baseMetadata = (input.trade.metadata ?? {}) as Record<string, any>;
+    const fillStateKey = input.fillSide === 'entry' ? 'entryFillState' : 'exitFillState';
+    const fillRollupKey = input.fillSide === 'entry' ? 'entryFillRollup' : 'exitFillRollup';
+    const syncedAt = new Date().toISOString();
+
+    const previousState = baseMetadata[fillStateKey] as
+      | {
+          filledQuantity?: number;
+          pendingQuantity?: number;
+        }
+      | undefined;
+    const previousFilledQuantity = Number(previousState?.filledQuantity ?? 0);
+    const currentFilledQuantity = Number(input.payload.filledQuantity ?? 0);
+    const currentPendingQuantity = Number(input.payload.pendingQuantity ?? 0);
+    const deltaFilledQuantity = Math.max(currentFilledQuantity - previousFilledQuantity, 0);
+
+    const fillEvent = {
+      orderId: input.payload.orderId,
+      filledQuantity: currentFilledQuantity,
+      pendingQuantity: currentPendingQuantity,
+      deltaFilledQuantity,
+      averagePrice: input.payload.averagePrice ?? null,
+      statusMessage: input.payload.statusMessage ?? null,
+      syncedAt,
+    };
+
+    const existingRollup = Array.isArray(baseMetadata[fillRollupKey])
+      ? (baseMetadata[fillRollupKey] as Array<Record<string, unknown>>)
+      : [];
+    const shouldAppendRollup =
+      existingRollup.length === 0 ||
+      deltaFilledQuantity > 0 ||
+      Number(previousState?.pendingQuantity ?? -1) !== currentPendingQuantity;
+    const updatedRollup = shouldAppendRollup
+      ? [...existingRollup, fillEvent].slice(-50)
+      : existingRollup;
+
+    return {
+      ...baseMetadata,
+      [fillStateKey]: {
+        orderId: input.payload.orderId,
+        filledQuantity: currentFilledQuantity,
+        pendingQuantity: currentPendingQuantity,
+        averagePrice: input.payload.averagePrice ?? null,
+        statusMessage: input.payload.statusMessage ?? null,
+        syncedAt,
+      },
+      [fillRollupKey]: updatedRollup,
+    };
+  }
+
+  private mergeCompletionFillMetadata(input: {
+    trade: Trade;
+    fillSide: 'entry' | 'exit';
+    orderId: string;
+    averagePrice?: number;
+  }) {
+    const completedState = this.mergePartialFillMetadata({
+      trade: input.trade,
+      fillSide: input.fillSide,
+      payload: {
+        orderId: input.orderId,
+        averagePrice: input.averagePrice,
+        filledQuantity: Number(input.trade.quantity ?? 0),
+        pendingQuantity: 0,
+        statusMessage: 'COMPLETE',
+      },
+    });
+
+    return completedState;
   }
 }
