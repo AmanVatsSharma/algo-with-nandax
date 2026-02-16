@@ -18,6 +18,8 @@ import {
   Eye,
   Wallet,
   Sparkles,
+  FlaskConical,
+  Shield,
 } from 'lucide-react';
 import { agentsApi, tradesApi, brokerApi } from '@/lib/api';
 import { wsService } from '@/lib/websocket';
@@ -245,7 +247,7 @@ export default function DashboardPage() {
         {activeView === 'overview' && (
           <div className="space-y-8">
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
               <QuickActionCard
                 title="Deploy AI Agent"
                 description="Launch intelligent trading agents"
@@ -267,6 +269,27 @@ export default function DashboardPage() {
                 href="/dashboard/strategies/new"
                 color="cyan"
               />
+              <QuickActionCard
+                title="Run Backtest"
+                description="Validate strategy on historical data"
+                icon={<FlaskConical className="w-8 h-8" />}
+                href="/dashboard/backtesting"
+                color="emerald"
+              />
+              <QuickActionCard
+                title="Risk Controls"
+                description="Configure kill-switch and exposure limits"
+                icon={<Shield className="w-8 h-8" />}
+                href="/dashboard/risk"
+                color="amber"
+              />
+              <QuickActionCard
+                title="AI Governance"
+                description="Inspect provider cost and model behavior"
+                icon={<BarChart3 className="w-8 h-8" />}
+                href="/dashboard/agents/governance"
+                color="purple"
+              />
             </div>
 
             {/* Recent Activity */}
@@ -279,18 +302,27 @@ export default function DashboardPage() {
 
         {activeView === 'agents' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 gap-3 flex-wrap">
               <h2 className="text-2xl font-bold text-white flex items-center space-x-3">
                 <Sparkles className="w-6 h-6 text-blue-400" />
                 <span>AI Trading Agents</span>
               </h2>
-              <Link
-                href="/dashboard/agents/new"
-                className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg shadow-blue-500/50 hover:shadow-blue-500/70 transform hover:scale-105"
-              >
-                <Plus className="w-5 h-5" />
-                <span className="font-semibold">Deploy New Agent</span>
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/dashboard/agents/governance"
+                  className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-lg hover:from-violet-600 hover:to-fuchsia-600 transition-all duration-300 shadow-lg shadow-violet-500/40 hover:shadow-violet-500/60 transform hover:scale-105"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span className="font-semibold">Governance</span>
+                </Link>
+                <Link
+                  href="/dashboard/agents/new"
+                  className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg shadow-blue-500/50 hover:shadow-blue-500/70 transform hover:scale-105"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="font-semibold">Deploy New Agent</span>
+                </Link>
+              </div>
             </div>
 
             {agents.length === 0 ? (
@@ -399,6 +431,8 @@ function QuickActionCard({ title, description, icon, href, color }: any) {
     blue: 'from-blue-500 to-cyan-500 hover:shadow-blue-500/50',
     purple: 'from-purple-500 to-pink-500 hover:shadow-purple-500/50',
     cyan: 'from-cyan-500 to-teal-500 hover:shadow-cyan-500/50',
+    emerald: 'from-emerald-500 to-lime-500 hover:shadow-emerald-500/50',
+    amber: 'from-amber-500 to-orange-500 hover:shadow-amber-500/50',
   };
 
   return (
@@ -475,6 +509,15 @@ function AIAgentCard({ agent, onStart, onStop }: any) {
               <span className="text-gray-400 text-xs block mb-1">ROI</span>
               <span className="text-white font-semibold">{agent.roi?.toFixed(2) || '0.00'}%</span>
             </div>
+          </div>
+          <div className="pt-1">
+            <Link
+              href={`/dashboard/agents/${agent.id}/decision-logs`}
+              className="inline-flex items-center space-x-1 text-violet-300 hover:text-violet-200 text-sm"
+            >
+              <Eye className="w-4 h-4" />
+              <span>View AI decision logs</span>
+            </Link>
           </div>
         </div>
 

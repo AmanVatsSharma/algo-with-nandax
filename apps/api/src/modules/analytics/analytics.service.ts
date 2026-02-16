@@ -5,7 +5,8 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { AnalyticsEvent, EventType } from './entities/analytics-event.entity';
 import { PerformanceReport, ReportType, ReportStatus } from './entities/performance-report.entity';
 import { Trade, TradeStatus } from '../trading/entities/trade.entity';
-import * as dayjs from 'dayjs';
+import dayjs from 'dayjs';
+import { getErrorMessage } from '@/common/utils/error.utils';
 
 @Injectable()
 export class AnalyticsService {
@@ -186,7 +187,7 @@ export class AnalyticsService {
       
       await this.performanceReportRepository.update(report.id, {
         status: ReportStatus.FAILED,
-        errorMessage: error.message,
+        errorMessage: getErrorMessage(error, 'Failed to generate report'),
       });
 
       throw error;

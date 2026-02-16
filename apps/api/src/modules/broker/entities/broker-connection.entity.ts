@@ -30,6 +30,9 @@ export class BrokerConnection extends BaseEntity {
   accessToken?: string;
 
   @Column({ type: 'text', nullable: true })
+  encryptedAccessToken?: string;
+
+  @Column({ type: 'text', nullable: true })
   encryptedApiSecret?: string;
 
   @Column({ type: 'text', nullable: true })

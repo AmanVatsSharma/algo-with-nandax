@@ -1,17 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { JobOptions, Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AgentsService } from '../agents.service';
 import { AgentStatus, AgentType } from '../entities/agent.entity';
+import { getErrorMessage } from '@/common/utils/error.utils';
+import { AIDecisionService } from './ai-decision.service';
 
 @Injectable()
 export class AgentExecutor {
   private readonly logger = new Logger(AgentExecutor.name);
+  private readonly agentExecutionJobOptions: JobOptions = {
+    attempts: 2,
+    backoff: {
+      type: 'exponential',
+      delay: 1000,
+    },
+    removeOnComplete: 100,
+    removeOnFail: 100,
+  };
 
   constructor(
     @InjectQueue('agents') private readonly agentsQueue: Queue,
     private readonly agentsService: AgentsService,
+    private readonly aiDecisionService: AIDecisionService,
   ) {}
 
   /**
@@ -23,7 +35,7 @@ export class AgentExecutor {
       this.logger.log(`Agent ${agentId} started`);
     } catch (error) {
       this.logger.error(`Error starting agent ${agentId}`, error);
-      await this.agentsService.setError(agentId, error.message);
+      await this.agentsService.setError(agentId, getErrorMessage(error, 'Failed to start agent'));
       throw error;
     }
   }
@@ -67,17 +79,34 @@ export class AgentExecutor {
 
     try {
       // Queue the agent execution
-      await this.agentsQueue.add('execute-strategy', {
-        agentId: agent.id,
-        strategyId: agent.strategyId,
-        agentType: agent.type,
-        strategyConfig: agent.strategy.configuration,
-      });
+      await this.agentsQueue.add(
+        'execute-strategy',
+        {
+          agentId: agent.id,
+          strategyId: agent.strategyId,
+          agentType: agent.type,
+          strategyConfig: agent.strategy.configuration,
+        },
+        {
+          ...this.agentExecutionJobOptions,
+          // Prevent overlapping execution for same agent in case previous job is still running.
+          jobId: `execute-strategy:${agent.id}`,
+        },
+      );
 
       this.logger.log(`Agent ${agentId} execution queued`);
     } catch (error) {
+      const errorMessage = getErrorMessage(error, 'Failed to execute agent');
+
+      if (errorMessage.toLowerCase().includes('job') && errorMessage.toLowerCase().includes('exists')) {
+        this.logger.debug(
+          `Execution job already queued for agent ${agentId}; skipping duplicate enqueue`,
+        );
+        return;
+      }
+
       this.logger.error(`Error executing agent ${agentId}`, error);
-      await this.agentsService.setError(agentId, error.message);
+      await this.agentsService.setError(agentId, errorMessage);
     }
   }
 
@@ -105,22 +134,27 @@ export class AgentExecutor {
     agentId: string,
     marketData: any,
     strategyConfig: any,
+    agentContext?: {
+      userId?: string;
+      aiModelName?: string;
+      aiModelConfig?: Record<string, unknown>;
+    },
   ): Promise<{ action: 'buy' | 'sell' | 'hold'; confidence: number; metadata?: any }> {
-    // This is a placeholder for AI/ML model integration
-    // In production, this would call your trained AI model
-    
     this.logger.log(`Making AI decision for agent ${agentId}`);
-    
-    // Simulate AI decision (replace with actual AI model)
-    const decision = {
-      action: 'hold' as 'buy' | 'sell' | 'hold',
-      confidence: 0.5,
-      metadata: {
-        indicators: {},
-        signals: [],
-      },
-    };
 
-    return decision;
+    const decision = await this.aiDecisionService.decide({
+      userId: agentContext?.userId,
+      agentId,
+      marketData,
+      strategyConfig,
+      aiModelName: agentContext?.aiModelName,
+      aiModelConfig: agentContext?.aiModelConfig,
+    });
+
+    return {
+      action: decision.action,
+      confidence: decision.confidence,
+      metadata: decision.metadata,
+    };
   }
 }

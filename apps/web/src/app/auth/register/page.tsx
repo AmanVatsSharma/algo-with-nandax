@@ -21,10 +21,9 @@ export default function RegisterPage() {
 
     try {
       const response = await authApi.register({ name, email, password });
-      const { user, accessToken, refreshToken } = response.data;
+      const { user, accessToken } = response.data;
 
       localStorage.setItem('accessToken', accessToken);
-      localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('userId', user.id);
       localStorage.setItem('user', JSON.stringify(user));
 

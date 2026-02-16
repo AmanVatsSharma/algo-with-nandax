@@ -1,27 +1,61 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
+import { HttpModule } from '@nestjs/axios';
 import { AgentsService } from './agents.service';
 import { AgentsController } from './agents.controller';
 import { AgentExecutor } from './services/agent-executor.service';
+import { AIDecisionService } from './services/ai-decision.service';
+import { AIDecisionLogService } from './services/ai-decision-log.service';
+import { AIGovernancePolicyService } from './services/ai-governance-policy.service';
+import { AIGovernancePolicyRequestService } from './services/ai-governance-policy-request.service';
+import { AIGovernanceEventService } from './services/ai-governance-event.service';
+import { AICostLedgerService } from './services/ai-cost-ledger.service';
+import { AICostLedgerScheduler } from './services/ai-cost-ledger.scheduler';
 import { AgentProcessor } from './processors/agent.processor';
 import { Agent } from './entities/agent.entity';
+import { AIDecisionLog } from './entities/ai-decision-log.entity';
+import { AICostLedger } from './entities/ai-cost-ledger.entity';
+import { AIGovernanceProfile } from './entities/ai-governance-profile.entity';
+import { AIGovernancePolicyRequest } from './entities/ai-governance-policy-request.entity';
+import { AIGovernanceEvent } from './entities/ai-governance-event.entity';
 import { StrategyModule } from '../strategy/strategy.module';
 import { TradingModule } from '../trading/trading.module';
 import { BrokerModule } from '../broker/broker.module';
+import { RiskModule } from '../risk/risk.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Agent]),
+    TypeOrmModule.forFeature([
+      Agent,
+      AIDecisionLog,
+      AICostLedger,
+      AIGovernanceProfile,
+      AIGovernancePolicyRequest,
+      AIGovernanceEvent,
+    ]),
     BullModule.registerQueue({
       name: 'agents',
     }),
+    HttpModule,
     StrategyModule,
     TradingModule,
     BrokerModule,
+    RiskModule,
   ],
   controllers: [AgentsController],
-  providers: [AgentsService, AgentExecutor, AgentProcessor],
+  providers: [
+    AgentsService,
+    AgentExecutor,
+    AgentProcessor,
+    AIDecisionService,
+    AIDecisionLogService,
+    AIGovernancePolicyService,
+    AIGovernancePolicyRequestService,
+    AIGovernanceEventService,
+    AICostLedgerService,
+    AICostLedgerScheduler,
+  ],
   exports: [AgentsService, AgentExecutor],
 })
 export class AgentsModule {}

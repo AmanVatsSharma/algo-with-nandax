@@ -11,7 +11,11 @@ import {
 } from '@nestjs/common';
 import { BrokerService } from './broker.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { BrokerType } from './entities/broker-connection.entity';
+import { CreateConnectionDto } from './dto/create-connection.dto';
+import { ConnectKiteDto } from './dto/connect-kite.dto';
+import { PlaceKiteOrderDto } from './dto/place-kite-order.dto';
+import { GetKiteLoginUrlDto } from './dto/get-kite-login-url.dto';
+import { Audit } from '../audit/decorators/audit.decorator';
 
 @Controller('broker')
 @UseGuards(JwtAuthGuard)
@@ -19,9 +23,10 @@ export class BrokerController {
   constructor(private readonly brokerService: BrokerService) {}
 
   @Post('connection')
+  @Audit({ action: 'broker.connection.create', resourceType: 'broker_connection' })
   async createConnection(
     @Request() req,
-    @Body() body: { brokerType: BrokerType; apiKey: string },
+    @Body() body: CreateConnectionDto,
   ) {
     return this.brokerService.createConnection(req.user.userId, body.brokerType, body.apiKey);
   }
@@ -42,28 +47,32 @@ export class BrokerController {
   }
 
   @Get('connection/:id')
-  async getConnection(@Param('id') id: string) {
-    return this.brokerService.getConnectionById(id);
+  async getConnection(@Param('id') id: string, @Request() req) {
+    return this.brokerService.getConnectionById(id, req.user.userId);
   }
 
   @Delete('connection/:id')
-  async deleteConnection(@Param('id') id: string) {
-    await this.brokerService.deleteConnection(id);
+  @Audit({ action: 'broker.connection.delete', resourceType: 'broker_connection' })
+  async deleteConnection(@Param('id') id: string, @Request() req) {
+    await this.brokerService.deleteConnection(id, req.user.userId);
     return { message: 'Connection deleted successfully' };
   }
 
   // Kite-specific endpoints
   @Get('kite/login-url')
-  async getKiteLoginUrl(@Query('apiKey') apiKey: string) {
-    const loginUrl = await this.brokerService.generateKiteLoginUrl(apiKey);
+  async getKiteLoginUrl(@Query() query: GetKiteLoginUrlDto) {
+    const loginUrl = await this.brokerService.generateKiteLoginUrl(query.apiKey);
     return { loginUrl };
   }
 
   @Post('kite/connect')
+  @Audit({ action: 'broker.kite.connect', resourceType: 'broker_connection' })
   async connectKite(
-    @Body() body: { connectionId: string; requestToken: string; apiSecret: string },
+    @Request() req,
+    @Body() body: ConnectKiteDto,
   ) {
     return this.brokerService.connectKite(
+      req.user.userId,
       body.connectionId,
       body.requestToken,
       body.apiSecret,
@@ -71,22 +80,27 @@ export class BrokerController {
   }
 
   @Get('kite/profile/:connectionId')
-  async getKiteProfile(@Param('connectionId') connectionId: string) {
-    return this.brokerService.getKiteProfile(connectionId);
+  async getKiteProfile(@Param('connectionId') connectionId: string, @Request() req) {
+    return this.brokerService.getKiteProfile(req.user.userId, connectionId);
   }
 
   @Get('kite/positions/:connectionId')
-  async getKitePositions(@Param('connectionId') connectionId: string) {
-    return this.brokerService.getKitePositions(connectionId);
+  async getKitePositions(@Param('connectionId') connectionId: string, @Request() req) {
+    return this.brokerService.getKitePositions(req.user.userId, connectionId);
   }
 
   @Get('kite/holdings/:connectionId')
-  async getKiteHoldings(@Param('connectionId') connectionId: string) {
-    return this.brokerService.getKiteHoldings(connectionId);
+  async getKiteHoldings(@Param('connectionId') connectionId: string, @Request() req) {
+    return this.brokerService.getKiteHoldings(req.user.userId, connectionId);
   }
 
   @Post('kite/order/:connectionId')
-  async placeKiteOrder(@Param('connectionId') connectionId: string, @Body() orderData: any) {
-    return this.brokerService.placeKiteOrder(connectionId, orderData);
+  @Audit({ action: 'broker.kite.order.place', resourceType: 'broker_order' })
+  async placeKiteOrder(
+    @Param('connectionId') connectionId: string,
+    @Request() req,
+    @Body() orderData: PlaceKiteOrderDto,
+  ) {
+    return this.brokerService.placeKiteOrder(req.user.userId, connectionId, orderData);
   }
 }

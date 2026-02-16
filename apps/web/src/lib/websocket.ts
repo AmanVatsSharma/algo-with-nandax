@@ -12,7 +12,15 @@ class WebSocketService {
     }
 
     this.userId = userId;
-    this.socket = io(WS_URL);
+    const accessToken = localStorage.getItem('accessToken');
+
+    this.socket = io(WS_URL, {
+      auth: accessToken
+        ? {
+            token: `Bearer ${accessToken}`,
+          }
+        : undefined,
+    });
 
     this.socket.on('connect', () => {
       console.log('WebSocket connected');

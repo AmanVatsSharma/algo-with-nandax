@@ -8,6 +8,14 @@
 
 **Algo with NandaX** is a comprehensive, full-stack algorithmic trading platform that enables users to create, manage, and deploy AI-powered trading agents. The platform integrates seamlessly with Zerodha Kite API for real-time market data and trade execution.
 
+> ⚠️ **Implementation reality note (important):**
+> This repository is under active hardening for enterprise/live-trading readiness.  
+> Core capabilities are available, but some features in roadmap docs are aspirational.
+> For up-to-date delivered capabilities, rely on module-level docs in:
+> - `apps/api/src/modules/*/README.md`
+> - API build/tests status in CI/local validation.
+> - `CURRENT_IMPLEMENTATION_MATRIX.md` for code-verified feature matrix.
+
 ### Key Features
 
 - 🤖 **AI-Powered Trading Agents** - Deploy intelligent agents that learn and adapt to market conditions

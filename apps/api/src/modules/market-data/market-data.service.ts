@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import { KiteService } from '../broker/services/kite.service';
+import { BrokerService } from '../broker/broker.service';
+import { getErrorMessage } from '@/common/utils/error.utils';
 
 @Injectable()
 export class MarketDataService {
@@ -9,44 +10,46 @@ export class MarketDataService {
 
   constructor(
     @InjectQueue('market-data') private readonly marketDataQueue: Queue,
-    private readonly kiteService: KiteService,
+    private readonly brokerService: BrokerService,
   ) {}
 
-  async getQuotes(accessToken: string, instruments: string[]) {
+  async getQuotes(userId: string, connectionId: string, instruments: string[]) {
     try {
-      return await this.kiteService.getQuote(accessToken, instruments);
+      return await this.brokerService.getKiteQuotes(userId, connectionId, instruments);
     } catch (error) {
-      this.logger.error('Error fetching quotes', error);
+      this.logger.error(getErrorMessage(error, 'Error fetching quotes'), error);
       throw error;
     }
   }
 
-  async getOHLC(accessToken: string, instruments: string[]) {
+  async getOHLC(userId: string, connectionId: string, instruments: string[]) {
     try {
-      return await this.kiteService.getOHLC(accessToken, instruments);
+      return await this.brokerService.getKiteOHLC(userId, connectionId, instruments);
     } catch (error) {
-      this.logger.error('Error fetching OHLC', error);
+      this.logger.error(getErrorMessage(error, 'Error fetching OHLC'), error);
       throw error;
     }
   }
 
   async getHistoricalData(
-    accessToken: string,
+    userId: string,
+    connectionId: string,
     instrumentToken: string,
     interval: string,
     fromDate: string,
     toDate: string,
   ) {
     try {
-      return await this.kiteService.getHistoricalData(
-        accessToken,
+      return await this.brokerService.getKiteHistoricalData(
+        userId,
+        connectionId,
         instrumentToken,
         interval,
         fromDate,
         toDate,
       );
     } catch (error) {
-      this.logger.error('Error fetching historical data', error);
+      this.logger.error(getErrorMessage(error, 'Error fetching historical data'), error);
       throw error;
     }
   }

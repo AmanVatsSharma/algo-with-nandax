@@ -16,6 +16,10 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { MarketDataModule } from './modules/market-data/market-data.module';
 import { WebsocketModule } from './modules/websocket/websocket.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { HealthModule } from './modules/health/health.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { BacktestingModule } from './modules/backtesting/backtesting.module';
+import { RiskModule } from './modules/risk/risk.module';
 
 // Config
 import { typeOrmConfig } from './config/typeorm.config';
@@ -68,6 +72,10 @@ import { typeOrmConfig } from './config/typeorm.config';
     MarketDataModule,
     WebsocketModule,
     AnalyticsModule,
+    HealthModule,
+    AuditModule,
+    BacktestingModule,
+    RiskModule,
   ],
 })
 export class AppModule {}

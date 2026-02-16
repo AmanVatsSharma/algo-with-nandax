@@ -4,6 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1
 
 export const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,13 +29,13 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
         const userId = localStorage.getItem('userId');
 
-        if (refreshToken && userId) {
+        if (userId) {
           const response = await axios.post(`${API_URL}/auth/refresh`, {
             userId,
-            refreshToken,
+          }, {
+            withCredentials: true,
           });
 
           const { accessToken } = response.data;
@@ -76,6 +77,36 @@ export const strategiesApi = {
 export const agentsApi = {
   getAll: () => api.get('/agents'),
   getById: (id: string) => api.get(`/agents/${id}`),
+  getDecisionLogs: (id: string, limit: number = 100) =>
+    api.get(`/agents/${id}/decision-logs?limit=${limit}`),
+  getGovernanceSummary: (days: number = 30) =>
+    api.get(`/agents/governance/summary?days=${days}`),
+  getGovernanceLedger: (days: number = 30) =>
+    api.get(`/agents/governance/ledger?days=${days}`),
+  getGovernancePolicy: () => api.get('/agents/governance/policy'),
+  getGovernanceEvents: (limit: number = 100) =>
+    api.get(`/agents/governance/events?limit=${limit}`),
+  getGovernancePolicyRequests: (limit: number = 100) =>
+    api.get(`/agents/governance/policy/change-requests?limit=${limit}`),
+  updateGovernancePolicy: (data: {
+    liveInferenceEnabled?: boolean;
+    dailyCostBudgetUsd?: number;
+    dailyTokenBudget?: number;
+    providerDailyCostBudgetUsd?: number;
+    policyNote?: string;
+  }) => api.patch('/agents/governance/policy', data),
+  submitGovernancePolicyRequest: (data: {
+    liveInferenceEnabled?: boolean;
+    dailyCostBudgetUsd?: number;
+    dailyTokenBudget?: number;
+    providerDailyCostBudgetUsd?: number;
+    policyNote?: string;
+    requestNote?: string;
+  }) => api.post('/agents/governance/policy/change-requests', data),
+  approveGovernancePolicyRequest: (id: string, data?: { reviewNote?: string }) =>
+    api.post(`/agents/governance/policy/change-requests/${id}/approve`, data ?? {}),
+  rejectGovernancePolicyRequest: (id: string, data?: { reviewNote?: string }) =>
+    api.post(`/agents/governance/policy/change-requests/${id}/reject`, data ?? {}),
   create: (data: any) => api.post('/agents', data),
   update: (id: string, data: any) => api.patch(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),
@@ -92,6 +123,8 @@ export const tradesApi = {
   getStats: () => api.get('/trades/stats'),
   execute: (data: any) => api.post('/trades', data),
   close: (id: string, data: any) => api.post(`/trades/${id}/close`, data),
+  reconcile: (data: { connectionId?: string; tradeId?: string; maxItems?: number }) =>
+    api.post('/trades/reconcile', data),
 };
 
 export const brokerApi = {
@@ -116,4 +149,118 @@ export const portfolioApi = {
   update: (id: string, data: any) => api.patch(`/portfolios/${id}`, data),
   getPositions: (id: string) => api.get(`/portfolios/${id}/positions`),
   getOpenPositions: (id: string) => api.get(`/portfolios/${id}/positions/open`),
+};
+
+export const backtestingApi = {
+  run: (data: {
+    connectionId: string;
+    instrumentToken: string;
+    interval: string;
+    fromDate: string;
+    toDate: string;
+    quantity?: number;
+    entryThresholdPercent?: number;
+    exitThresholdPercent?: number;
+    feePerTrade?: number;
+    slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
+    stopLossPercent?: number;
+    takeProfitPercent?: number;
+    walkForwardWindows?: number;
+    initialCapital?: number;
+  }) => api.post('/backtesting/run', data),
+  runPortfolio: (data: {
+    connectionId: string;
+    instrumentTokens: string[];
+    weights?: number[];
+    interval: string;
+    fromDate: string;
+    toDate: string;
+    quantity?: number;
+    entryThresholdPercent?: number;
+    exitThresholdPercent?: number;
+    feePerTrade?: number;
+    slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
+    stopLossPercent?: number;
+    takeProfitPercent?: number;
+    walkForwardWindows?: number;
+    initialCapital?: number;
+  }) => api.post('/backtesting/run-portfolio', data),
+  optimize: (data: {
+    connectionId: string;
+    instrumentToken: string;
+    interval: string;
+    fromDate: string;
+    toDate: string;
+    quantity?: number;
+    feePerTrade?: number;
+    slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
+    stopLossPercent?: number;
+    takeProfitPercent?: number;
+    walkForwardWindows?: number;
+    initialCapital?: number;
+    entryThresholdCandidates?: number[];
+    exitThresholdCandidates?: number[];
+    topN?: number;
+  }) => api.post('/backtesting/optimize', data),
+  optimizePortfolio: (data: {
+    connectionId: string;
+    instrumentTokens: string[];
+    interval: string;
+    fromDate: string;
+    toDate: string;
+    quantity?: number;
+    feePerTrade?: number;
+    slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
+    stopLossPercent?: number;
+    takeProfitPercent?: number;
+    walkForwardWindows?: number;
+    initialCapital?: number;
+    topN?: number;
+    minWeightPercent?: number;
+    maxWeightPercent?: number;
+    maxActiveInstruments?: number;
+    candidateCount?: number;
+  }) => api.post('/backtesting/optimize-portfolio', data),
+};
+
+export const riskApi = {
+  getProfile: () => api.get('/risk/profile'),
+  updateProfile: (data: {
+    maxPositionValuePerTrade?: number;
+    maxDailyLoss?: number;
+    maxDailyProfit?: number;
+    maxOpenTradesPerAgent?: number;
+    killSwitchEnabled?: boolean;
+    killSwitchReason?: string;
+  }) => api.patch('/risk/profile', data),
+  enableKillSwitch: (reason?: string) => api.post('/risk/kill-switch/enable', { reason }),
+  disableKillSwitch: () => api.post('/risk/kill-switch/disable'),
+  getAlerts: (limit: number = 50) => api.get(`/risk/alerts?limit=${limit}`),
+  getAnalytics: (params?: { days?: number; confidenceLevel?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.days) {
+      search.set('days', String(params.days));
+    }
+    if (params?.confidenceLevel) {
+      search.set('confidenceLevel', String(params.confidenceLevel));
+    }
+    const queryString = search.toString();
+    return api.get(`/risk/analytics${queryString ? `?${queryString}` : ''}`);
+  },
 };
