@@ -12,7 +12,7 @@ Risk module centralizes user-level trading guardrails and breach alerts.
   - max open trades per agent
 - Risk alerts for breach events
 - API for profile updates and kill-switch controls
-- Risk analytics snapshot (historical VaR + drawdown + exposure)
+- Risk analytics snapshot (historical VaR + drawdown + exposure + symbol correlation + stress scenarios)
 - Scheduled auto kill-switch worker for daily PnL breaches
 
 ## API

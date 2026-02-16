@@ -200,6 +200,9 @@ export class RiskService {
       const quantity = Number(trade.quantity ?? 0);
       return sum + Math.abs(price * quantity);
     }, 0);
+    const correlationMatrix = this.buildSymbolCorrelationMatrix(closedTrades);
+    const stressScenarios = this.buildStressScenarios(openTrades);
+    const largestOpenSymbolExposure = this.getLargestOpenSymbolExposure(openTrades);
 
     return {
       period: {
@@ -217,12 +220,15 @@ export class RiskService {
         maxProfitTrade: closedTrades.length ? Math.max(...tradePnLs) : 0,
         maxLossTrade: closedTrades.length ? Math.min(...tradePnLs) : 0,
         grossOpenExposure,
+        largestOpenSymbolExposure,
       },
       riskMetrics: {
         valueAtRisk,
         expectedShortfall,
         maxDrawdown,
       },
+      correlationMatrix,
+      stressScenarios,
       dailyPnL,
       equityCurve,
     };
@@ -355,5 +361,140 @@ export class RiskService {
       metadata: payload.metadata,
     });
     await this.riskAlertRepository.save(alert);
+  }
+
+  private buildSymbolCorrelationMatrix(closedTrades: Trade[]) {
+    const perSymbolDailyPnL = new Map<string, Map<string, number>>();
+    for (const trade of closedTrades) {
+      const symbol = String(trade.symbol ?? '').trim();
+      if (!symbol) {
+        continue;
+      }
+      const tradeDate = (trade.exitTime ?? trade.createdAt).toISOString().slice(0, 10);
+      const symbolDailyMap = perSymbolDailyPnL.get(symbol) ?? new Map<string, number>();
+      const runningValue = symbolDailyMap.get(tradeDate) ?? 0;
+      symbolDailyMap.set(tradeDate, runningValue + Number(trade.netPnL ?? 0));
+      perSymbolDailyPnL.set(symbol, symbolDailyMap);
+    }
+
+    const symbolEntries = Array.from(perSymbolDailyPnL.entries())
+      .sort((left, right) => right[1].size - left[1].size)
+      .slice(0, 8);
+    if (symbolEntries.length < 2) {
+      return {
+        symbols: symbolEntries.map(([symbol]) => symbol),
+        values: [] as Array<{ left: string; right: string; correlation: number }>,
+      };
+    }
+
+    const values: Array<{ left: string; right: string; correlation: number }> = [];
+    for (let leftIndex = 0; leftIndex < symbolEntries.length; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < symbolEntries.length; rightIndex++) {
+        const [leftSymbol, leftMap] = symbolEntries[leftIndex];
+        const [rightSymbol, rightMap] = symbolEntries[rightIndex];
+        const correlation = this.computeCorrelation(leftMap, rightMap);
+        values.push({
+          left: leftSymbol,
+          right: rightSymbol,
+          correlation,
+        });
+      }
+    }
+
+    return {
+      symbols: symbolEntries.map(([symbol]) => symbol),
+      values,
+    };
+  }
+
+  private buildStressScenarios(openTrades: Trade[]) {
+    const grossExposure = openTrades.reduce((sum, trade) => {
+      const price = Number(trade.executedEntryPrice ?? trade.entryPrice ?? 0);
+      const quantity = Number(trade.quantity ?? 0);
+      return sum + Math.abs(price * quantity);
+    }, 0);
+
+    const scenarios = [
+      { name: 'mild_drawdown', shockPercent: -2 },
+      { name: 'deep_drawdown', shockPercent: -5 },
+      { name: 'severe_crash', shockPercent: -10 },
+      { name: 'short_squeeze', shockPercent: 4 },
+    ];
+
+    return scenarios.map((scenario) => {
+      const projectedPnLImpact = openTrades.reduce((sum, trade) => {
+        const price = Number(trade.executedEntryPrice ?? trade.entryPrice ?? 0);
+        const quantity = Number(trade.quantity ?? 0);
+        if (price <= 0 || quantity <= 0) {
+          return sum;
+        }
+
+        const shockValue = (price * Math.abs(scenario.shockPercent)) / 100;
+        const isAdverseForLong = scenario.shockPercent < 0 && trade.side === 'buy';
+        const isAdverseForShort = scenario.shockPercent > 0 && trade.side === 'sell';
+        const signedImpact =
+          isAdverseForLong || isAdverseForShort ? -shockValue * quantity : shockValue * quantity;
+
+        return sum + signedImpact;
+      }, 0);
+
+      return {
+        ...scenario,
+        projectedPnLImpact,
+        projectedEquityImpactPercent:
+          grossExposure > 0 ? (projectedPnLImpact / grossExposure) * 100 : 0,
+      };
+    });
+  }
+
+  private getLargestOpenSymbolExposure(openTrades: Trade[]) {
+    const exposureBySymbol = new Map<string, number>();
+    for (const trade of openTrades) {
+      const symbol = String(trade.symbol ?? '').trim();
+      if (!symbol) {
+        continue;
+      }
+      const price = Number(trade.executedEntryPrice ?? trade.entryPrice ?? 0);
+      const quantity = Number(trade.quantity ?? 0);
+      const currentExposure = exposureBySymbol.get(symbol) ?? 0;
+      exposureBySymbol.set(symbol, currentExposure + Math.abs(price * quantity));
+    }
+
+    const sorted = Array.from(exposureBySymbol.entries()).sort((left, right) => right[1] - left[1]);
+    const [symbol, exposure] = sorted[0] ?? ['N/A', 0];
+    return {
+      symbol,
+      exposure,
+    };
+  }
+
+  private computeCorrelation(leftSeries: Map<string, number>, rightSeries: Map<string, number>) {
+    const allDates = Array.from(new Set([...leftSeries.keys(), ...rightSeries.keys()])).sort();
+    if (allDates.length < 2) {
+      return 0;
+    }
+
+    const leftValues = allDates.map((date) => leftSeries.get(date) ?? 0);
+    const rightValues = allDates.map((date) => rightSeries.get(date) ?? 0);
+
+    const leftMean = leftValues.reduce((sum, value) => sum + value, 0) / leftValues.length;
+    const rightMean = rightValues.reduce((sum, value) => sum + value, 0) / rightValues.length;
+
+    let numerator = 0;
+    let leftVariance = 0;
+    let rightVariance = 0;
+    for (let index = 0; index < allDates.length; index++) {
+      const leftDelta = leftValues[index] - leftMean;
+      const rightDelta = rightValues[index] - rightMean;
+      numerator += leftDelta * rightDelta;
+      leftVariance += leftDelta ** 2;
+      rightVariance += rightDelta ** 2;
+    }
+
+    if (leftVariance <= 0 || rightVariance <= 0) {
+      return 0;
+    }
+
+    return Number((numerator / Math.sqrt(leftVariance * rightVariance)).toFixed(4));
   }
 }

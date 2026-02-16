@@ -104,26 +104,44 @@ describe('RiskService', () => {
     tradeRepository.find
       .mockResolvedValueOnce([
         {
+          symbol: 'NSE:SBIN',
           netPnL: 150,
           createdAt: new Date('2026-02-10T10:00:00.000Z'),
           exitTime: new Date('2026-02-10T11:00:00.000Z'),
         },
         {
+          symbol: 'NSE:SBIN',
           netPnL: -50,
           createdAt: new Date('2026-02-11T10:00:00.000Z'),
           exitTime: new Date('2026-02-11T11:00:00.000Z'),
         },
         {
+          symbol: 'NSE:INFY',
           netPnL: -120,
           createdAt: new Date('2026-02-12T10:00:00.000Z'),
           exitTime: new Date('2026-02-12T11:00:00.000Z'),
         },
+        {
+          symbol: 'NSE:INFY',
+          netPnL: 100,
+          createdAt: new Date('2026-02-13T10:00:00.000Z'),
+          exitTime: new Date('2026-02-13T11:00:00.000Z'),
+        },
       ])
       .mockResolvedValueOnce([
         {
+          symbol: 'NSE:SBIN',
+          side: 'buy',
           quantity: 10,
           entryPrice: 500,
           executedEntryPrice: 505,
+        },
+        {
+          symbol: 'NSE:INFY',
+          side: 'sell',
+          quantity: 2,
+          entryPrice: 1500,
+          executedEntryPrice: 1490,
         },
       ]);
 
@@ -132,11 +150,15 @@ describe('RiskService', () => {
       confidenceLevel: 95,
     });
 
-    expect(result.tradeStats.closedTrades).toBe(3);
-    expect(result.tradeStats.grossOpenExposure).toBe(5050);
+    expect(result.tradeStats.closedTrades).toBe(4);
+    expect(result.tradeStats.grossOpenExposure).toBe(8030);
+    expect(result.tradeStats.largestOpenSymbolExposure.symbol).toBe('NSE:SBIN');
     expect(result.riskMetrics.valueAtRisk).toBeGreaterThan(0);
     expect(result.riskMetrics.expectedShortfall).toBeGreaterThan(0);
     expect(Array.isArray(result.dailyPnL)).toBe(true);
+    expect(Array.isArray(result.stressScenarios)).toBe(true);
+    expect(result.stressScenarios.length).toBeGreaterThan(0);
+    expect(Array.isArray(result.correlationMatrix.values)).toBe(true);
   });
 
   it('computes today pnl from trade repository', async () => {
