@@ -4,6 +4,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1
 
 export const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -28,13 +29,13 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem('refreshToken');
         const userId = localStorage.getItem('userId');
 
-        if (refreshToken && userId) {
+        if (userId) {
           const response = await axios.post(`${API_URL}/auth/refresh`, {
             userId,
-            refreshToken,
+          }, {
+            withCredentials: true,
           });
 
           const { accessToken } = response.data;

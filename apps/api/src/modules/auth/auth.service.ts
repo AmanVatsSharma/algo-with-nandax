@@ -5,6 +5,12 @@ import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { getErrorMessage } from '@/common/utils/error.utils';
+
+interface RefreshTokenPayload {
+  sub: string;
+  email: string;
+}
 
 @Injectable()
 export class AuthService {
@@ -69,6 +75,23 @@ export class AuthService {
   }
 
   async refreshTokens(userId: string, refreshToken: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Access Denied');
+    }
+
+    let payload: RefreshTokenPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+    } catch (error) {
+      throw new UnauthorizedException(getErrorMessage(error, 'Invalid refresh token'));
+    }
+
+    if (payload.sub !== userId) {
+      throw new UnauthorizedException('Refresh token does not match user');
+    }
+
     const user = await this.usersService.findById(userId);
     if (!user || !user.refreshToken) {
       throw new UnauthorizedException('Access Denied');
@@ -83,6 +106,27 @@ export class AuthService {
     await this.usersService.updateRefreshToken(user.id, tokens.refreshToken);
 
     return tokens;
+  }
+
+  async refreshTokensWithToken(refreshToken: string, userIdHint?: string) {
+    if (!refreshToken) {
+      throw new UnauthorizedException('Access Denied');
+    }
+
+    let payload: RefreshTokenPayload;
+    try {
+      payload = await this.jwtService.verifyAsync<RefreshTokenPayload>(refreshToken, {
+        secret: this.configService.get('JWT_REFRESH_SECRET'),
+      });
+    } catch (error) {
+      throw new UnauthorizedException(getErrorMessage(error, 'Invalid refresh token'));
+    }
+
+    if (userIdHint && userIdHint !== payload.sub) {
+      throw new UnauthorizedException('Refresh token does not match user');
+    }
+
+    return this.refreshTokens(payload.sub, refreshToken);
   }
 
   private async generateTokens(userId: string, email: string) {

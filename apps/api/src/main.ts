@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { randomUUID } from 'crypto';
 import { Request, Response, NextFunction } from 'express';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -32,6 +33,8 @@ async function bootstrap() {
       },
     }),
   );
+
+  app.use(cookieParser());
 
   app.use((req: Request, res: Response, next: NextFunction) => {
     const requestIdHeader = req.headers['x-request-id'];
