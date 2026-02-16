@@ -77,6 +77,8 @@ export const strategiesApi = {
 export const agentsApi = {
   getAll: () => api.get('/agents'),
   getById: (id: string) => api.get(`/agents/${id}`),
+  getDecisionLogs: (id: string, limit: number = 100) =>
+    api.get(`/agents/${id}/decision-logs?limit=${limit}`),
   create: (data: any) => api.post('/agents', data),
   update: (id: string, data: any) => api.patch(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),

@@ -494,6 +494,15 @@ function AIAgentCard({ agent, onStart, onStop }: any) {
               <span className="text-white font-semibold">{agent.roi?.toFixed(2) || '0.00'}%</span>
             </div>
           </div>
+          <div className="pt-1">
+            <Link
+              href={`/dashboard/agents/${agent.id}/decision-logs`}
+              className="inline-flex items-center space-x-1 text-violet-300 hover:text-violet-200 text-sm"
+            >
+              <Eye className="w-4 h-4" />
+              <span>View AI decision logs</span>
+            </Link>
+          </div>
         </div>
 
         {agent.status === 'running' && (

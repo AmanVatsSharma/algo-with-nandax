@@ -73,6 +73,7 @@ This document reflects **actual code state** and intentionally separates shipped
 | Capability | Status | Notes |
 |---|---|---|
 | Missing dashboard route fixes | ✅ | settings / agents/new / strategies/new / accounts/[id] |
+| Agent decision log dashboard route | ✅ | `/dashboard/agents/[agentId]/decision-logs` |
 | Broker connect popup flow | ✅ | Callback + window message flow |
 | End-to-end polished strategy backtest UI | 📌 | Not shipped yet |
 | API backtesting engine (v1.5 deterministic+) | ✅ | `POST /backtesting/run` supports slippage, stop-loss/take-profit, walk-forward windows |
