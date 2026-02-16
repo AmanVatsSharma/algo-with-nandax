@@ -42,13 +42,33 @@ export class PortfolioService {
     return portfolio;
   }
 
-  async updatePortfolio(id: string, updateData: Partial<Portfolio>): Promise<Portfolio> {
-    await this.portfolioRepository.update(id, updateData);
-    return this.findPortfolioById(id);
+  async findPortfolioByIdAndUser(id: string, userId: string): Promise<Portfolio> {
+    const portfolio = await this.portfolioRepository.findOne({
+      where: { id, userId },
+      relations: ['positions'],
+    });
+
+    if (!portfolio) {
+      throw new NotFoundException('Portfolio not found');
+    }
+
+    return portfolio;
+  }
+
+  async updatePortfolio(id: string, userId: string, updateData: Partial<Portfolio>): Promise<Portfolio> {
+    await this.findPortfolioByIdAndUser(id, userId);
+    await this.portfolioRepository.update({ id, userId }, updateData);
+    return this.findPortfolioByIdAndUser(id, userId);
   }
 
   // Position methods
-  async createPosition(portfolioId: string, positionData: Partial<Position>): Promise<Position> {
+  async createPosition(
+    portfolioId: string,
+    userId: string,
+    positionData: Partial<Position>,
+  ): Promise<Position> {
+    await this.findPortfolioByIdAndUser(portfolioId, userId);
+
     const position = this.positionRepository.create({
       ...positionData,
       portfolioId,
@@ -57,14 +77,16 @@ export class PortfolioService {
     return this.positionRepository.save(position);
   }
 
-  async findPositionsByPortfolio(portfolioId: string): Promise<Position[]> {
+  async findPositionsByPortfolio(portfolioId: string, userId: string): Promise<Position[]> {
+    await this.findPortfolioByIdAndUser(portfolioId, userId);
     return this.positionRepository.find({
       where: { portfolioId },
       order: { openedAt: 'DESC' },
     });
   }
 
-  async findOpenPositions(portfolioId: string): Promise<Position[]> {
+  async findOpenPositions(portfolioId: string, userId: string): Promise<Position[]> {
+    await this.findPortfolioByIdAndUser(portfolioId, userId);
     return this.positionRepository.find({
       where: {
         portfolioId,
@@ -82,9 +104,16 @@ export class PortfolioService {
     return position;
   }
 
-  async closePosition(id: string, currentPrice: number): Promise<Position> {
-    const position = await this.positionRepository.findOne({ where: { id } });
+  async closePosition(id: string, userId: string, currentPrice: number): Promise<Position> {
+    const position = await this.positionRepository.findOne({
+      where: { id },
+      relations: ['portfolio'],
+    });
     if (!position) {
+      throw new NotFoundException('Position not found');
+    }
+
+    if (position.portfolio.userId !== userId) {
       throw new NotFoundException('Position not found');
     }
 

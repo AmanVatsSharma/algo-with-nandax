@@ -12,6 +12,8 @@ import {
 import { AgentsService } from './agents.service';
 import { AgentExecutor } from './services/agent-executor.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateAgentDto } from './dto/create-agent.dto';
+import { UpdateAgentDto } from './dto/update-agent.dto';
 
 @Controller('agents')
 @UseGuards(JwtAuthGuard)
@@ -22,7 +24,7 @@ export class AgentsController {
   ) {}
 
   @Post()
-  async create(@Request() req, @Body() agentData: any) {
+  async create(@Request() req, @Body() agentData: CreateAgentDto) {
     return this.agentsService.create(req.user.userId, agentData);
   }
 
@@ -37,7 +39,7 @@ export class AgentsController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Request() req, @Body() updateData: any) {
+  async update(@Param('id') id: string, @Request() req, @Body() updateData: UpdateAgentDto) {
     return this.agentsService.update(id, req.user.userId, updateData);
   }
 

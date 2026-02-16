@@ -24,6 +24,32 @@ export default function BrokerPage() {
 
   useEffect(() => {
     fetchData();
+
+    const handleKiteConnectMessage = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) {
+        return;
+      }
+
+      if (event.data?.type !== 'kite-connect-result') {
+        return;
+      }
+
+      console.log('Received kite connect message:', event.data);
+
+      if (event.data.success) {
+        fetchData();
+        setShowConnectModal(false);
+        return;
+      }
+
+      alert(event.data.message || 'Failed to connect Kite account');
+    };
+
+    window.addEventListener('message', handleKiteConnectMessage);
+
+    return () => {
+      window.removeEventListener('message', handleKiteConnectMessage);
+    };
   }, []);
 
   const fetchData = async () => {
@@ -361,6 +387,12 @@ function ConnectAccountModal({ onClose, onSuccess }: any) {
     e.preventDefault();
     setLoading(true);
 
+    if (!apiSecret) {
+      alert('Please enter your Zerodha API Secret');
+      setLoading(false);
+      return;
+    }
+
     try {
       // Create connection
       const response = await brokerApi.createConnection({
@@ -368,6 +400,15 @@ function ConnectAccountModal({ onClose, onSuccess }: any) {
         apiKey,
       });
       setConnectionId(response.data.id);
+
+      sessionStorage.setItem(
+        'kite-connect-pending',
+        JSON.stringify({
+          connectionId: response.data.id,
+          apiSecret,
+        }),
+      );
+
       setStep(2);
     } catch (error) {
       console.error('Error creating connection:', error);
@@ -380,7 +421,20 @@ function ConnectAccountModal({ onClose, onSuccess }: any) {
   const handleGetLoginUrl = async () => {
     try {
       const response = await brokerApi.getKiteLoginUrl(apiKey);
-      window.open(response.data.loginUrl, '_blank');
+
+      sessionStorage.setItem(
+        'kite-connect-pending',
+        JSON.stringify({
+          connectionId,
+          apiSecret,
+        }),
+      );
+
+      window.open(
+        response.data.loginUrl,
+        '_blank',
+        'popup=yes,width=540,height=760,left=200,top=120',
+      );
       setStep(3);
     } catch (error) {
       console.error('Error getting login URL:', error);
@@ -436,9 +490,26 @@ function ConnectAccountModal({ onClose, onSuccess }: any) {
                 </p>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Zerodha API Secret
+                </label>
+                <input
+                  type="password"
+                  value={apiSecret}
+                  onChange={(e) => setApiSecret(e.target.value)}
+                  className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                  placeholder="Enter your Kite API Secret"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-2">
+                  This value is used once to exchange request token securely.
+                </p>
+              </div>
+
               <button
                 type="submit"
-                disabled={loading || !apiKey}
+                disabled={loading || !apiKey || !apiSecret}
                 className="w-full py-3 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 disabled:opacity-50 font-semibold"
               >
                 {loading ? 'Creating Connection...' : 'Continue'}

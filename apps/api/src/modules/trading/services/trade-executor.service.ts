@@ -63,12 +63,13 @@ export class TradeExecutor {
   }
 
   async closeTrade(
+    userId: string,
     tradeId: string,
     connectionId: string,
     exitReason?: string,
   ) {
     try {
-      const trade = await this.tradingService.findById(tradeId);
+      const trade = await this.tradingService.findByIdAndUser(tradeId, userId);
 
       // Queue the exit order
       await this.tradingQueue.add('close-trade', {

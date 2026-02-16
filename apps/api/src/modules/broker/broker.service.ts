@@ -52,10 +52,10 @@ export class BrokerService {
       connections.map(async (connection) => {
         try {
           const [profile, positions, holdings, margins] = await Promise.all([
-            this.kiteService.getProfile(connection.accessToken),
-            this.kiteService.getPositions(connection.accessToken),
-            this.kiteService.getHoldings(connection.accessToken),
-            this.kiteService.getMargins(connection.accessToken),
+            this.kiteService.getProfile(connection.accessToken, connection.apiKey),
+            this.kiteService.getPositions(connection.accessToken, connection.apiKey),
+            this.kiteService.getHoldings(connection.accessToken, connection.apiKey),
+            this.kiteService.getMargins(connection.accessToken, connection.apiKey),
           ]);
 
           return {
@@ -82,9 +82,10 @@ export class BrokerService {
     return accountsData;
   }
 
-  async getConnectionById(connectionId: string): Promise<BrokerConnection> {
+  async getConnectionById(connectionId: string, userId?: string): Promise<BrokerConnection> {
+    const whereClause = userId ? { id: connectionId, userId } : { id: connectionId };
     const connection = await this.brokerConnectionRepository.findOne({
-      where: { id: connectionId },
+      where: whereClause,
     });
 
     if (!connection) {
@@ -124,8 +125,11 @@ export class BrokerService {
     await this.brokerConnectionRepository.update(connectionId, { requestToken });
   }
 
-  async deleteConnection(connectionId: string): Promise<void> {
-    const result = await this.brokerConnectionRepository.delete(connectionId);
+  async deleteConnection(connectionId: string, userId: string): Promise<void> {
+    const result = await this.brokerConnectionRepository.delete({
+      id: connectionId,
+      userId,
+    });
     if (result.affected === 0) {
       throw new NotFoundException('Broker connection not found');
     }
@@ -136,8 +140,13 @@ export class BrokerService {
     return this.kiteService.generateLoginUrl(apiKey);
   }
 
-  async connectKite(connectionId: string, requestToken: string, apiSecret: string): Promise<any> {
-    const connection = await this.getConnectionById(connectionId);
+  async connectKite(
+    userId: string,
+    connectionId: string,
+    requestToken: string,
+    apiSecret: string,
+  ): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
     const session = await this.kiteService.generateSession(
       connection.apiKey,
       requestToken,
@@ -153,23 +162,52 @@ export class BrokerService {
     return session;
   }
 
-  async getKiteProfile(connectionId: string): Promise<any> {
-    const connection = await this.getConnectionById(connectionId);
-    return this.kiteService.getProfile(connection.accessToken);
+  async getKiteProfile(userId: string, connectionId: string): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
+    return this.kiteService.getProfile(connection.accessToken, connection.apiKey);
   }
 
-  async getKitePositions(connectionId: string): Promise<any> {
-    const connection = await this.getConnectionById(connectionId);
-    return this.kiteService.getPositions(connection.accessToken);
+  async getKitePositions(userId: string, connectionId: string): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
+    return this.kiteService.getPositions(connection.accessToken, connection.apiKey);
   }
 
-  async getKiteHoldings(connectionId: string): Promise<any> {
-    const connection = await this.getConnectionById(connectionId);
-    return this.kiteService.getHoldings(connection.accessToken);
+  async getKiteHoldings(userId: string, connectionId: string): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
+    return this.kiteService.getHoldings(connection.accessToken, connection.apiKey);
   }
 
-  async placeKiteOrder(connectionId: string, orderData: any): Promise<any> {
-    const connection = await this.getConnectionById(connectionId);
+  async placeKiteOrder(userId: string, connectionId: string, orderData: any): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
     return this.kiteService.placeOrder(connection.accessToken, connection.apiKey, orderData);
+  }
+
+  async getKiteQuotes(userId: string, connectionId: string, instruments: string[]): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
+    return this.kiteService.getQuote(connection.accessToken, instruments, connection.apiKey);
+  }
+
+  async getKiteOHLC(userId: string, connectionId: string, instruments: string[]): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
+    return this.kiteService.getOHLC(connection.accessToken, instruments, connection.apiKey);
+  }
+
+  async getKiteHistoricalData(
+    userId: string,
+    connectionId: string,
+    instrumentToken: string,
+    interval: string,
+    fromDate: string,
+    toDate: string,
+  ): Promise<any> {
+    const connection = await this.getConnectionById(connectionId, userId);
+    return this.kiteService.getHistoricalData(
+      connection.accessToken,
+      instrumentToken,
+      interval,
+      fromDate,
+      toDate,
+      connection.apiKey,
+    );
   }
 }

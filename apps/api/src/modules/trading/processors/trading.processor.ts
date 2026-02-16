@@ -21,8 +21,14 @@ export class TradingProcessor {
     this.logger.log(`Processing place order for trade: ${tradeId}`);
 
     try {
+      const trade = await this.tradingService.findById(tradeId);
+
       // Place order via broker
-      const orderResult = await this.brokerService.placeKiteOrder(connectionId, orderData);
+      const orderResult = await this.brokerService.placeKiteOrder(
+        trade.userId,
+        connectionId,
+        orderData,
+      );
 
       // Update trade with order details
       await this.tradingService.updateEntryExecution(
@@ -53,8 +59,14 @@ export class TradingProcessor {
     this.logger.log(`Processing close trade: ${tradeId}`);
 
     try {
+      const trade = await this.tradingService.findById(tradeId);
+
       // Place exit order via broker
-      const orderResult = await this.brokerService.placeKiteOrder(connectionId, orderData);
+      const orderResult = await this.brokerService.placeKiteOrder(
+        trade.userId,
+        connectionId,
+        orderData,
+      );
 
       // Update trade with exit details
       await this.tradingService.updateExitExecution(

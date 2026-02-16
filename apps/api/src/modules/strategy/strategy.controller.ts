@@ -11,7 +11,9 @@ import {
 } from '@nestjs/common';
 import { StrategyService } from './strategy.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StrategyStatus } from './entities/strategy.entity';
+import { CreateStrategyDto } from './dto/create-strategy.dto';
+import { UpdateStrategyDto } from './dto/update-strategy.dto';
+import { UpdateStrategyStatusDto } from './dto/update-strategy-status.dto';
 
 @Controller('strategies')
 @UseGuards(JwtAuthGuard)
@@ -19,7 +21,7 @@ export class StrategyController {
   constructor(private readonly strategyService: StrategyService) {}
 
   @Post()
-  async create(@Request() req, @Body() strategyData: any) {
+  async create(@Request() req, @Body() strategyData: CreateStrategyDto) {
     return this.strategyService.create(req.user.userId, strategyData);
   }
 
@@ -39,7 +41,7 @@ export class StrategyController {
   }
 
   @Patch(':id')
-  async update(@Param('id') id: string, @Request() req, @Body() updateData: any) {
+  async update(@Param('id') id: string, @Request() req, @Body() updateData: UpdateStrategyDto) {
     return this.strategyService.update(id, req.user.userId, updateData);
   }
 
@@ -47,7 +49,7 @@ export class StrategyController {
   async updateStatus(
     @Param('id') id: string,
     @Request() req,
-    @Body() body: { status: StrategyStatus },
+    @Body() body: UpdateStrategyStatusDto,
   ) {
     return this.strategyService.updateStatus(id, req.user.userId, body.status);
   }

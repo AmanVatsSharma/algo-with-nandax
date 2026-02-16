@@ -11,6 +11,8 @@ import {
 import { TradingService } from './trading.service';
 import { TradeExecutor } from './services/trade-executor.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ExecuteTradeDto } from './dto/execute-trade.dto';
+import { CloseTradeDto } from './dto/close-trade.dto';
 
 @Controller('trades')
 @UseGuards(JwtAuthGuard)
@@ -21,7 +23,7 @@ export class TradingController {
   ) {}
 
   @Post()
-  async executeTrade(@Request() req, @Body() body: any) {
+  async executeTrade(@Request() req, @Body() body: ExecuteTradeDto) {
     return this.tradeExecutor.executeTrade(
       req.user.userId,
       body.agentId,
@@ -31,8 +33,12 @@ export class TradingController {
   }
 
   @Post(':id/close')
-  async closeTrade(@Param('id') id: string, @Body() body: { connectionId: string; exitReason?: string }) {
-    return this.tradeExecutor.closeTrade(id, body.connectionId, body.exitReason);
+  async closeTrade(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() body: CloseTradeDto,
+  ) {
+    return this.tradeExecutor.closeTrade(req.user.userId, id, body.connectionId, body.exitReason);
   }
 
   @Get()
@@ -51,12 +57,12 @@ export class TradingController {
   }
 
   @Get('agent/:agentId')
-  async findByAgent(@Param('agentId') agentId: string) {
-    return this.tradingService.findByAgent(agentId);
+  async findByAgent(@Request() req, @Param('agentId') agentId: string) {
+    return this.tradingService.findByAgentAndUser(agentId, req.user.userId);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.tradingService.findById(id);
+  async findOne(@Request() req, @Param('id') id: string) {
+    return this.tradingService.findByIdAndUser(id, req.user.userId);
   }
 }

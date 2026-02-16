@@ -23,6 +23,16 @@ export class TradingService {
     return trade;
   }
 
+  async findByIdAndUser(id: string, userId: string): Promise<Trade> {
+    const trade = await this.tradeRepository.findOne({
+      where: { id, userId },
+    });
+    if (!trade) {
+      throw new NotFoundException('Trade not found');
+    }
+    return trade;
+  }
+
   async findByUser(userId: string): Promise<Trade[]> {
     return this.tradeRepository.find({
       where: { userId },
@@ -33,6 +43,13 @@ export class TradingService {
   async findByAgent(agentId: string): Promise<Trade[]> {
     return this.tradeRepository.find({
       where: { agentId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findByAgentAndUser(agentId: string, userId: string): Promise<Trade[]> {
+    return this.tradeRepository.find({
+      where: { agentId, userId },
       order: { createdAt: 'DESC' },
     });
   }
