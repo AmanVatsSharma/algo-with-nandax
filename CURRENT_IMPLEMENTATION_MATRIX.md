@@ -21,6 +21,7 @@ This document reflects **actual code state** and intentionally separates shipped
 | Unit test baseline | ✅ | API has Jest + ts-jest with foundational specs |
 | Structured request tracing | ✅ | Request id middleware + response header |
 | Global exception envelope | ✅ | Global exception filter added |
+| Migration baseline for hardening schema | ✅ | Added enterprise hardening migration for new security/risk/audit fields |
 
 ## Authentication & Session
 
