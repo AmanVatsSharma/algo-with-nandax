@@ -19,6 +19,7 @@ This document reflects **actual code state** and intentionally separates shipped
 | API compile health | ✅ | `pnpm --filter @algo-nandax/api build` passes |
 | Web compile health | ✅ | `pnpm --filter @algo-nandax/web build` passes |
 | Unit test baseline | ✅ | API has Jest + ts-jest with foundational specs |
+| CI baseline | ✅ | Added GitHub Actions workflow for API tests + API/Web build checks |
 | Structured request tracing | ✅ | Request id middleware + response header |
 | Global exception envelope | ✅ | Global exception filter added |
 | Migration baseline for hardening schema | ✅ | Added enterprise hardening migration for new security/risk/audit fields |
