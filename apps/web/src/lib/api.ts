@@ -93,6 +93,8 @@ export const tradesApi = {
   getStats: () => api.get('/trades/stats'),
   execute: (data: any) => api.post('/trades', data),
   close: (id: string, data: any) => api.post(`/trades/${id}/close`, data),
+  reconcile: (data: { connectionId?: string; tradeId?: string; maxItems?: number }) =>
+    api.post('/trades/reconcile', data),
 };
 
 export const brokerApi = {

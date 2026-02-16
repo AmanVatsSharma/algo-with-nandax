@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { brokerApi } from '@/lib/api';
+import { brokerApi, tradesApi } from '@/lib/api';
 import { ArrowLeft, Wallet } from 'lucide-react';
 
 export default function AccountDetailsPage() {
@@ -15,6 +15,8 @@ export default function AccountDetailsPage() {
   const [profile, setProfile] = useState<any>(null);
   const [positions, setPositions] = useState<any>(null);
   const [holdings, setHoldings] = useState<any>(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileResult, setReconcileResult] = useState<any>(null);
 
   useEffect(() => {
     if (!connectionId) {
@@ -46,6 +48,28 @@ export default function AccountDetailsPage() {
 
   const netPositions = useMemo(() => positions?.net ?? [], [positions]);
 
+  const reconcilePendingTrades = async () => {
+    if (!connectionId) {
+      return;
+    }
+
+    setReconciling(true);
+    setErrorMessage('');
+    try {
+      const response = await tradesApi.reconcile({
+        connectionId,
+        maxItems: 100,
+      });
+      console.log('reconcile-pending-trades-result', response.data);
+      setReconcileResult(response.data);
+    } catch (error: any) {
+      console.error('reconcile-pending-trades-error', error);
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to reconcile pending trades');
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-white">
       <div className="max-w-6xl mx-auto px-6 py-10">
@@ -76,6 +100,31 @@ export default function AccountDetailsPage() {
 
         {!loading && !errorMessage && (
           <div className="space-y-6">
+            <section className="rounded-xl border border-emerald-500/20 bg-slate-900/60 p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-semibold">Order Reconciliation</h2>
+                  <p className="text-slate-400 text-sm">
+                    Sync pending trade orders with latest broker status for this connection.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={reconcilePendingTrades}
+                  disabled={reconciling}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-700 transition px-4 py-2 font-semibold disabled:opacity-50"
+                >
+                  {reconciling ? 'Reconciling...' : 'Reconcile now'}
+                </button>
+              </div>
+
+              {reconcileResult && (
+                <pre className="mt-4 text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                  {JSON.stringify(reconcileResult, null, 2)}
+                </pre>
+              )}
+            </section>
+
             <section className="rounded-xl border border-blue-500/20 bg-slate-900/60 p-6">
               <h2 className="text-xl font-semibold mb-4">Profile</h2>
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
