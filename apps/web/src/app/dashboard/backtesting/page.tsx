@@ -16,6 +16,8 @@ export default function BacktestingPage() {
   const [form, setForm] = useState({
     connectionId: '',
     instrumentToken: '',
+    portfolioTokensCsv: '',
+    portfolioWeightsCsv: '',
     interval: '5minute',
     fromDate: '',
     toDate: '',
@@ -79,6 +81,58 @@ export default function BacktestingPage() {
     } catch (error: any) {
       console.error('run-backtesting-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to run backtest');
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const runPortfolioBacktest = async () => {
+    setRunning(true);
+    setResult(null);
+    setErrorMessage('');
+
+    try {
+      const instrumentTokens = form.portfolioTokensCsv
+        .split(',')
+        .map((token) => token.trim())
+        .filter(Boolean);
+      if (!instrumentTokens.length) {
+        setErrorMessage('Provide comma-separated instrument tokens for portfolio backtest');
+        return;
+      }
+
+      const parsedWeights = form.portfolioWeightsCsv
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean)
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+      const payload = {
+        connectionId: form.connectionId,
+        instrumentTokens,
+        weights:
+          parsedWeights.length === instrumentTokens.length ? parsedWeights : undefined,
+        interval: form.interval,
+        fromDate: form.fromDate,
+        toDate: form.toDate,
+        quantity: Number(form.quantity),
+        entryThresholdPercent: Number(form.entryThresholdPercent),
+        exitThresholdPercent: Number(form.exitThresholdPercent),
+        feePerTrade: Number(form.feePerTrade),
+        slippageBps: Number(form.slippageBps),
+        stopLossPercent: Number(form.stopLossPercent),
+        takeProfitPercent: Number(form.takeProfitPercent),
+        walkForwardWindows: Number(form.walkForwardWindows),
+        initialCapital: Number(form.initialCapital),
+      };
+
+      console.log('run-portfolio-backtesting-payload', payload);
+      const response = await backtestingApi.runPortfolio(payload);
+      setResult(response.data);
+    } catch (error: any) {
+      console.error('run-portfolio-backtesting-error', error);
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to run portfolio backtest');
     } finally {
       setRunning(false);
     }
@@ -172,6 +226,22 @@ export default function BacktestingPage() {
                 className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
               />
             </Field>
+            <Field label="Portfolio tokens (comma-separated, optional)">
+              <input
+                value={form.portfolioTokensCsv}
+                onChange={(event) => setForm({ ...form, portfolioTokensCsv: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+                placeholder="12345, 67890, 11111"
+              />
+            </Field>
+            <Field label="Portfolio weights (comma-separated, optional)">
+              <input
+                value={form.portfolioWeightsCsv}
+                onChange={(event) => setForm({ ...form, portfolioWeightsCsv: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+                placeholder="50,30,20"
+              />
+            </Field>
             <Field label="Entry threshold %">
               <input
                 type="number"
@@ -262,6 +332,14 @@ export default function BacktestingPage() {
           >
             {running ? 'Running backtest...' : 'Run backtest'}
           </button>
+          <button
+            type="button"
+            disabled={running}
+            onClick={runPortfolioBacktest}
+            className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 transition px-4 py-3 font-semibold disabled:opacity-50"
+          >
+            {running ? 'Running portfolio backtest...' : 'Run portfolio backtest'}
+          </button>
         </form>
 
         {result && (
@@ -276,6 +354,12 @@ export default function BacktestingPage() {
               <h2 className="text-xl font-semibold mb-4">Walk-forward windows</h2>
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
                 {JSON.stringify(result.windows ?? [], null, 2)}
+              </pre>
+            </div>
+            <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">
+              <h2 className="text-xl font-semibold mb-4">Portfolio instruments</h2>
+              <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                {JSON.stringify(result.instruments ?? [], null, 2)}
               </pre>
             </div>
             <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">

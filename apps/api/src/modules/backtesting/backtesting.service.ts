@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { BrokerService } from '../broker/broker.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
+import { RunPortfolioBacktestDto } from './dto/run-portfolio-backtest.dto';
 
 interface Candle {
   timestamp: string;
@@ -20,6 +21,11 @@ interface SimulatedTrade {
   pnl: number;
   entryTime: string;
   exitTime: string;
+}
+
+interface PortfolioTrade extends SimulatedTrade {
+  instrumentToken: string;
+  weight: number;
 }
 
 @Injectable()
@@ -47,6 +53,120 @@ export class BacktestingService {
       `backtesting-run-complete: userId=${userId} instrument=${dto.instrumentToken} totalTrades=${result.summary.totalTrades} totalPnL=${result.summary.totalPnL.toFixed(2)}`,
     );
     return result;
+  }
+
+  async runPortfolioBacktest(userId: string, dto: RunPortfolioBacktestDto) {
+    const uniqueTokens = Array.from(
+      new Set((dto.instrumentTokens ?? []).map((token) => token.trim()).filter(Boolean)),
+    );
+    if (!uniqueTokens.length) {
+      throw new BadRequestException('At least one instrument token is required');
+    }
+
+    const initialCapital = dto.initialCapital ?? 100000;
+    const normalizedWeights = this.normalizeWeights(uniqueTokens, dto.weights);
+
+    this.logger.log(
+      `backtesting-portfolio-start: userId=${userId} instruments=${uniqueTokens.length} interval=${dto.interval} initialCapital=${initialCapital}`,
+    );
+
+    const portfolioTrades: PortfolioTrade[] = [];
+    const instrumentSummaries: Array<Record<string, unknown>> = [];
+
+    for (let index = 0; index < uniqueTokens.length; index++) {
+      const instrumentToken = uniqueTokens[index];
+      const weight = normalizedWeights[index];
+      const historicalData = await this.brokerService.getKiteHistoricalData(
+        userId,
+        dto.connectionId,
+        instrumentToken,
+        dto.interval,
+        dto.fromDate,
+        dto.toDate,
+      );
+      const candles = this.normalizeCandles(historicalData?.candles ?? []);
+      const allocatedCapital = initialCapital * weight;
+      const derivedQuantity =
+        dto.quantity ??
+        this.deriveQuantityFromCapital(candles[0]?.close ?? 0, allocatedCapital);
+
+      const instrumentResult = this.simulateStrategy(candles, {
+        connectionId: dto.connectionId,
+        instrumentToken,
+        interval: dto.interval,
+        fromDate: dto.fromDate,
+        toDate: dto.toDate,
+        quantity: derivedQuantity,
+        entryThresholdPercent: dto.entryThresholdPercent,
+        exitThresholdPercent: dto.exitThresholdPercent,
+        feePerTrade: dto.feePerTrade,
+        slippageBps: dto.slippageBps,
+        stopLossPercent: dto.stopLossPercent,
+        takeProfitPercent: dto.takeProfitPercent,
+        walkForwardWindows: dto.walkForwardWindows,
+        initialCapital: allocatedCapital,
+      });
+
+      instrumentSummaries.push({
+        instrumentToken,
+        weight,
+        allocatedCapital,
+        ...instrumentResult.summary,
+      });
+
+      const taggedTrades = instrumentResult.trades.map((trade) => ({
+        ...trade,
+        instrumentToken,
+        weight,
+      }));
+      portfolioTrades.push(...taggedTrades);
+    }
+
+    const sortedTrades = [...portfolioTrades].sort((left, right) =>
+      left.exitTime.localeCompare(right.exitTime),
+    );
+    const totalPnL = sortedTrades.reduce((sum, trade) => sum + Number(trade.pnl ?? 0), 0);
+    const winningTrades = sortedTrades.filter((trade) => trade.pnl > 0).length;
+    const losingTrades = sortedTrades.filter((trade) => trade.pnl < 0).length;
+    const totalTrades = sortedTrades.length;
+    const winRate = totalTrades ? (winningTrades / totalTrades) * 100 : 0;
+
+    const equityCurve = this.buildPortfolioEquityCurve(sortedTrades, initialCapital);
+    const maxDrawdown = this.calculateMaxDrawdownFromPortfolioCurve(equityCurve, initialCapital);
+
+    this.logger.log(
+      `backtesting-portfolio-complete: userId=${userId} instruments=${uniqueTokens.length} totalTrades=${totalTrades} totalPnL=${totalPnL.toFixed(2)}`,
+    );
+
+    return {
+      summary: {
+        instrumentsTested: uniqueTokens.length,
+        totalTrades,
+        winningTrades,
+        losingTrades,
+        winRate,
+        totalPnL,
+        maxDrawdown,
+        initialCapital,
+        endingEquity: initialCapital + totalPnL,
+      },
+      configUsed: {
+        interval: dto.interval,
+        fromDate: dto.fromDate,
+        toDate: dto.toDate,
+        entryThresholdPercent: dto.entryThresholdPercent ?? 0.4,
+        exitThresholdPercent: dto.exitThresholdPercent ?? 0.2,
+        feePerTrade: dto.feePerTrade ?? 0,
+        slippageBps: dto.slippageBps ?? 0,
+        stopLossPercent: dto.stopLossPercent ?? 0,
+        takeProfitPercent: dto.takeProfitPercent ?? 0,
+        walkForwardWindows: dto.walkForwardWindows ?? 1,
+        initialCapital,
+      },
+      instruments: instrumentSummaries,
+      trades: sortedTrades,
+      equityCurve,
+    };
   }
 
   private normalizeCandles(rawCandles: any[]): Candle[] {
@@ -311,6 +431,65 @@ export class BacktestingService {
       maxDrawdown = Math.max(maxDrawdown, peakEquity - point.equity);
     }
 
+    return maxDrawdown;
+  }
+
+  private normalizeWeights(tokens: string[], providedWeights?: number[]) {
+    if (!providedWeights?.length) {
+      const equalWeight = 1 / tokens.length;
+      return tokens.map(() => equalWeight);
+    }
+
+    if (providedWeights.length !== tokens.length) {
+      throw new BadRequestException(
+        'weights length must match instrumentTokens length when provided',
+      );
+    }
+
+    const cleanWeights = providedWeights.map((weight) => Number(weight));
+    if (cleanWeights.some((weight) => !Number.isFinite(weight) || weight <= 0)) {
+      throw new BadRequestException('All weights must be positive numbers');
+    }
+
+    const totalWeight = cleanWeights.reduce((sum, weight) => sum + weight, 0);
+    if (totalWeight <= 0) {
+      throw new BadRequestException('weights must sum to a positive value');
+    }
+
+    return cleanWeights.map((weight) => weight / totalWeight);
+  }
+
+  private deriveQuantityFromCapital(referencePrice: number, allocatedCapital: number) {
+    if (!Number.isFinite(referencePrice) || referencePrice <= 0) {
+      return 1;
+    }
+    const quantity = Math.floor(allocatedCapital / referencePrice);
+    return Math.max(quantity, 1);
+  }
+
+  private buildPortfolioEquityCurve(trades: PortfolioTrade[], initialCapital: number) {
+    const points: Array<{ timestamp: string; equity: number }> = [];
+    let runningPnL = 0;
+    for (const trade of trades) {
+      runningPnL += Number(trade.pnl ?? 0);
+      points.push({
+        timestamp: trade.exitTime,
+        equity: initialCapital + runningPnL,
+      });
+    }
+    return points;
+  }
+
+  private calculateMaxDrawdownFromPortfolioCurve(
+    equityCurve: Array<{ timestamp: string; equity: number }>,
+    initialCapital: number,
+  ) {
+    let peakEquity = initialCapital;
+    let maxDrawdown = 0;
+    for (const point of equityCurve) {
+      peakEquity = Math.max(peakEquity, point.equity);
+      maxDrawdown = Math.max(maxDrawdown, peakEquity - point.equity);
+    }
     return maxDrawdown;
   }
 }

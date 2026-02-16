@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BacktestingService } from './backtesting.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
+import { RunPortfolioBacktestDto } from './dto/run-portfolio-backtest.dto';
 
 @Controller('backtesting')
 @UseGuards(JwtAuthGuard)
@@ -13,5 +14,11 @@ export class BacktestingController {
   @Audit({ action: 'backtesting.run', resourceType: 'backtest' })
   async runBacktest(@Request() req, @Body() dto: RunBacktestDto) {
     return this.backtestingService.runBacktest(req.user.userId, dto);
+  }
+
+  @Post('run-portfolio')
+  @Audit({ action: 'backtesting.run_portfolio', resourceType: 'backtest' })
+  async runPortfolioBacktest(@Request() req, @Body() dto: RunPortfolioBacktestDto) {
+    return this.backtestingService.runPortfolioBacktest(req.user.userId, dto);
   }
 }

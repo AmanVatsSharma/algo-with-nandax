@@ -75,13 +75,14 @@ This document reflects **actual code state** and intentionally separates shipped
 | Broker connect popup flow | ✅ | Callback + window message flow |
 | End-to-end polished strategy backtest UI | 📌 | Not shipped yet |
 | API backtesting engine (v1.5 deterministic+) | ✅ | `POST /backtesting/run` supports slippage, stop-loss/take-profit, walk-forward windows |
+| Portfolio backtesting baseline | ✅ | `POST /backtesting/run-portfolio` aggregates multi-instrument simulations |
 
 ## Advanced Platform
 
 | Capability | Status | Notes |
 |---|---|---|
 | Multi-provider AI orchestration | 📌 | Planned |
-| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage baseline shipped; portfolio-level optimization pending |
+| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + portfolio baseline shipped; impact/optimization layer pending |
 | Multi-tenant white-label | 📌 | Planned |
 | SSO/SAML enterprise auth | 📌 | Planned |
 

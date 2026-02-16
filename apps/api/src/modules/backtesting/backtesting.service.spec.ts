@@ -69,4 +69,44 @@ describe('BacktestingService', () => {
     expect(result.summary.endingEquity).toBe(50000);
     expect(result.trades).toEqual([]);
   });
+
+  it('runs portfolio backtest and aggregates per-instrument results', async () => {
+    brokerServiceMock.getKiteHistoricalData
+      .mockResolvedValueOnce({
+        candles: [
+          ['2026-01-01T09:15:00+0530', 100, 101, 99, 100, 1000],
+          ['2026-01-01T09:20:00+0530', 100, 103, 99, 102, 1000],
+          ['2026-01-01T09:25:00+0530', 102, 104, 101, 103, 1000],
+          ['2026-01-01T09:30:00+0530', 103, 105, 102, 104, 1000],
+        ],
+      })
+      .mockResolvedValueOnce({
+        candles: [
+          ['2026-01-01T09:15:00+0530', 200, 202, 199, 200, 1000],
+          ['2026-01-01T09:20:00+0530', 200, 203, 198, 199, 1000],
+          ['2026-01-01T09:25:00+0530', 199, 201, 197, 198, 1000],
+          ['2026-01-01T09:30:00+0530', 198, 199, 195, 196, 1000],
+        ],
+      });
+
+    const result = await service.runPortfolioBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentTokens: ['111', '222'],
+      weights: [60, 40],
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      quantity: 5,
+      entryThresholdPercent: 0.4,
+      exitThresholdPercent: 0.3,
+      feePerTrade: 0,
+      initialCapital: 200000,
+    });
+
+    expect(result.summary.instrumentsTested).toBe(2);
+    expect(Array.isArray(result.instruments)).toBe(true);
+    expect(result.instruments.length).toBe(2);
+    expect(Array.isArray(result.trades)).toBe(true);
+    expect(brokerServiceMock.getKiteHistoricalData).toHaveBeenCalledTimes(2);
+  });
 });
