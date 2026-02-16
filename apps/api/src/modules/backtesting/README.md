@@ -1,4 +1,4 @@
-# Backtesting Module (v1.5)
+# Backtesting Module (v1.6)
 
 Backtesting module provides a first production-safe historical simulation pipeline.
 
@@ -26,6 +26,11 @@ Backtesting module provides a first production-safe historical simulation pipeli
   - `takeProfitPercent`
   - `walkForwardWindows`
   - `initialCapital`
+- optional portfolio optimizer constraints:
+  - `minWeightPercent`
+  - `maxWeightPercent`
+  - `maxActiveInstruments`
+  - `candidateCount`
 
 ## Simulation model (v1.5)
 
@@ -39,7 +44,7 @@ Backtesting module provides a first production-safe historical simulation pipeli
 - Computes net PnL, ending equity, max drawdown, and per-window summaries.
 - Portfolio endpoint aggregates multi-instrument PnL and portfolio equity curve.
 - Optimize endpoint runs threshold grid-search and ranks best strategy configurations.
-- Portfolio optimize endpoint ranks candidate portfolio weight allocations.
+- Portfolio optimize endpoint now performs constraint-aware candidate generation and ranking.
 
 ## Flow
 
@@ -83,13 +88,14 @@ flowchart TD
 ```mermaid
 flowchart TD
   A[Run optimize-portfolio request] --> B[Build candidate weight sets]
-  B --> C[Run portfolio simulation per candidate]
-  C --> D[Score with pnl-drawdown objective]
-  D --> E[Return top portfolio candidates]
+  B --> C[Apply allocation constraints and feasibility checks]
+  C --> D[Run portfolio simulation per candidate]
+  D --> E[Score with pnl-drawdown objective]
+  E --> F[Return top portfolio candidates]
 ```
 
 ## Notes
 
 - This remains deterministic and intentionally lightweight.
-- Future versions should add market impact models, portfolio-level allocation, and richer strategy DSL support.
+- Future versions should add institutional microstructure impact models and richer strategy DSL support.
 - Current market impact model is baseline (bps + participation multiplier), not full microstructure simulation.

@@ -166,4 +166,38 @@ describe('BacktestingService', () => {
     expect(result.topPortfolios.length).toBe(3);
     expect(result.bestPortfolio).not.toBeNull();
   });
+
+  it('optimizes portfolio weights with allocation constraints', async () => {
+    brokerServiceMock.getKiteHistoricalData.mockResolvedValue({
+      candles: [
+        ['2026-01-01T09:15:00+0530', 100, 101, 99, 100, 1000],
+        ['2026-01-01T09:20:00+0530', 100, 103, 99, 102, 1200],
+        ['2026-01-01T09:25:00+0530', 102, 104, 100, 101, 900],
+        ['2026-01-01T09:30:00+0530', 101, 103, 98, 99, 1000],
+      ],
+    });
+
+    const result = await service.optimizePortfolioBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentTokens: ['111', '222', '333'],
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      topN: 2,
+      minWeightPercent: 10,
+      maxWeightPercent: 60,
+      maxActiveInstruments: 2,
+      candidateCount: 25,
+    });
+
+    expect(result.evaluatedPortfolios).toBeGreaterThan(0);
+    expect(result.topPortfolios.length).toBe(2);
+    for (const portfolio of result.topPortfolios as Array<any>) {
+      const weights = portfolio.weights as number[];
+      const active = weights.filter((value) => value > 0.000001);
+      expect(active.length).toBeLessThanOrEqual(2);
+      expect(Math.max(...weights)).toBeLessThanOrEqual(0.600001);
+      expect(Math.min(...active)).toBeGreaterThanOrEqual(0.099999);
+    }
+  });
 });

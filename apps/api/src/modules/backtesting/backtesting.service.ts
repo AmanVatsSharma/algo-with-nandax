@@ -265,7 +265,15 @@ export class BacktestingService {
     }
 
     const topN = Math.min(Math.max(dto.topN ?? 5, 1), 10);
-    const candidateWeights = this.generatePortfolioWeightCandidates(uniqueTokens.length);
+    const candidateWeights = this.generateConstrainedPortfolioWeightCandidates(
+      uniqueTokens.length,
+      {
+        minWeightPercent: dto.minWeightPercent,
+        maxWeightPercent: dto.maxWeightPercent,
+        maxActiveInstruments: dto.maxActiveInstruments,
+        candidateCount: dto.candidateCount,
+      },
+    );
 
     const evaluations: Array<Record<string, unknown>> = [];
     for (const weights of candidateWeights) {
@@ -313,6 +321,10 @@ export class BacktestingService {
         toDate: dto.toDate,
         topN,
         candidatePortfolioCount: candidateWeights.length,
+        minWeightPercent: dto.minWeightPercent ?? 0,
+        maxWeightPercent: dto.maxWeightPercent ?? 100,
+        maxActiveInstruments: dto.maxActiveInstruments ?? uniqueTokens.length,
+        candidateCount: dto.candidateCount ?? 120,
       },
     };
   }
@@ -707,41 +719,236 @@ export class BacktestingService {
     return Array.from(new Set(normalized)).sort((left, right) => left - right);
   }
 
-  private generatePortfolioWeightCandidates(instrumentCount: number) {
-    const candidates: number[][] = [];
+  private generateConstrainedPortfolioWeightCandidates(
+    instrumentCount: number,
+    options: {
+      minWeightPercent?: number;
+      maxWeightPercent?: number;
+      maxActiveInstruments?: number;
+      candidateCount?: number;
+    },
+  ) {
     if (instrumentCount <= 0) {
-      return candidates;
+      return [];
     }
 
-    // Equal weight baseline.
-    candidates.push(Array.from({ length: instrumentCount }, () => 1 / instrumentCount));
+    const minWeight = Math.max(options.minWeightPercent ?? 0, 0) / 100;
+    const maxWeight = Math.min(Math.max(options.maxWeightPercent ?? 100, 0), 100) / 100;
+    const maxActiveInstruments = Math.min(
+      Math.max(options.maxActiveInstruments ?? instrumentCount, 1),
+      instrumentCount,
+    );
+    const candidateCount = Math.min(Math.max(options.candidateCount ?? 120, 10), 500);
 
-    // Concentrated portfolios (single-instrument focus).
+    if (minWeight > maxWeight) {
+      throw new BadRequestException('minWeightPercent cannot be greater than maxWeightPercent');
+    }
+
+    const minRequiredActive = Math.ceil(1 / Math.max(maxWeight, 1e-9));
+    if (maxActiveInstruments < minRequiredActive) {
+      throw new BadRequestException(
+        `Constraints are infeasible: maxActiveInstruments must be at least ${minRequiredActive} for maxWeightPercent=${(
+          maxWeight * 100
+        ).toFixed(2)}`,
+      );
+    }
+
+    if (minWeight * minRequiredActive > 1 + 1e-9) {
+      throw new BadRequestException('Constraints are infeasible: minWeightPercent is too high');
+    }
+
+    const unique = new Map<string, number[]>();
+
+    const addCandidate = (candidate: number[]) => {
+      const normalized = this.normalizeAndRoundWeights(candidate);
+      if (
+        this.isCandidateValidForConstraints(normalized, {
+          minWeight,
+          maxWeight,
+          maxActiveInstruments,
+        })
+      ) {
+        unique.set(normalized.join('|'), normalized);
+      }
+    };
+
+    // Seed deterministic baseline candidates first.
+    addCandidate(Array.from({ length: instrumentCount }, () => 1 / instrumentCount));
     for (let index = 0; index < instrumentCount; index++) {
-      const weights = Array.from({ length: instrumentCount }, (_, itemIndex) =>
+      const concentrated = Array.from({ length: instrumentCount }, (_, itemIndex) =>
         itemIndex === index ? 1 : 0,
       );
-      candidates.push(weights);
+      addCandidate(concentrated);
     }
-
-    // Simple pair-balanced candidates to diversify baseline exploration.
-    if (instrumentCount >= 2) {
-      for (let leftIndex = 0; leftIndex < instrumentCount; leftIndex++) {
-        for (let rightIndex = leftIndex + 1; rightIndex < instrumentCount; rightIndex++) {
-          const weights = Array.from({ length: instrumentCount }, () => 0);
-          weights[leftIndex] = 0.5;
-          weights[rightIndex] = 0.5;
-          candidates.push(weights);
-        }
+    for (let leftIndex = 0; leftIndex < instrumentCount; leftIndex++) {
+      for (let rightIndex = leftIndex + 1; rightIndex < instrumentCount; rightIndex++) {
+        const pair = Array.from({ length: instrumentCount }, () => 0);
+        pair[leftIndex] = 0.5;
+        pair[rightIndex] = 0.5;
+        addCandidate(pair);
       }
     }
 
-    // Deduplicate candidates.
-    const unique = new Map<string, number[]>();
-    for (const candidate of candidates) {
-      const normalized = candidate.map((value) => Number(value.toFixed(6)));
-      unique.set(normalized.join('|'), normalized);
+    // Generate additional constrained candidates via deterministic pseudo-random sampling.
+    let seed = 17;
+    let iterations = 0;
+    const maxIterations = candidateCount * 25;
+    while (unique.size < candidateCount && iterations < maxIterations) {
+      iterations += 1;
+      seed = (seed * 48271 + 13) % 2147483647;
+
+      const activeMin = Math.max(minRequiredActive, 1);
+      const activeCount =
+        activeMin + (seed % Math.max(maxActiveInstruments - activeMin + 1, 1));
+
+      const activeIndexes = this.pickDeterministicActiveIndexes(
+        instrumentCount,
+        activeCount,
+        seed,
+      );
+      const sampled = this.sampleConstrainedWeightsForIndexes({
+        instrumentCount,
+        activeIndexes,
+        minWeight,
+        maxWeight,
+        seed,
+      });
+
+      if (sampled) {
+        addCandidate(sampled);
+      }
     }
-    return Array.from(unique.values());
+
+    const candidates = Array.from(unique.values());
+    if (!candidates.length) {
+      throw new BadRequestException(
+        'Unable to generate feasible portfolio candidates for supplied constraints',
+      );
+    }
+    return candidates;
+  }
+
+  private normalizeAndRoundWeights(weights: number[]) {
+    const sanitized = weights.map((value) => (Number.isFinite(value) && value > 0 ? value : 0));
+    const total = sanitized.reduce((sum, value) => sum + value, 0);
+    if (total <= 0) {
+      return sanitized.map(() => 0);
+    }
+    return sanitized.map((value) => Number((value / total).toFixed(6)));
+  }
+
+  private isCandidateValidForConstraints(
+    weights: number[],
+    constraints: {
+      minWeight: number;
+      maxWeight: number;
+      maxActiveInstruments: number;
+    },
+  ) {
+    const activeWeights = weights.filter((value) => value > 1e-6);
+    if (!activeWeights.length) {
+      return false;
+    }
+
+    if (activeWeights.length > constraints.maxActiveInstruments) {
+      return false;
+    }
+
+    if (
+      activeWeights.some(
+        (value) =>
+          value < constraints.minWeight - 1e-6 || value > constraints.maxWeight + 1e-6,
+      )
+    ) {
+      return false;
+    }
+
+    const sum = weights.reduce((total, value) => total + value, 0);
+    return Math.abs(sum - 1) <= 1e-4;
+  }
+
+  private pickDeterministicActiveIndexes(
+    instrumentCount: number,
+    activeCount: number,
+    seed: number,
+  ) {
+    return Array.from({ length: instrumentCount }, (_, index) => ({
+      index,
+      score:
+        Math.abs(Math.sin((seed + 1) * (index + 1) * 1.61803398875)) +
+        ((seed + index) % 7) * 0.001,
+    }))
+      .sort((left, right) => right.score - left.score)
+      .slice(0, Math.min(activeCount, instrumentCount))
+      .map((item) => item.index);
+  }
+
+  private sampleConstrainedWeightsForIndexes(input: {
+    instrumentCount: number;
+    activeIndexes: number[];
+    minWeight: number;
+    maxWeight: number;
+    seed: number;
+  }) {
+    const weights = Array.from({ length: input.instrumentCount }, () => 0);
+    const activeCount = input.activeIndexes.length;
+    if (activeCount <= 0) {
+      return null;
+    }
+
+    const minimumBudget = input.minWeight * activeCount;
+    if (minimumBudget > 1 + 1e-9) {
+      return null;
+    }
+
+    const variableBudget = 1 - minimumBudget;
+    const raw = input.activeIndexes.map((_, index) => {
+      const value = Math.abs(Math.sin((input.seed + 1) * (index + 1) * 0.731)) + 0.01;
+      return value;
+    });
+    const rawTotal = raw.reduce((sum, value) => sum + value, 0);
+    if (rawTotal <= 0) {
+      return null;
+    }
+
+    input.activeIndexes.forEach((tokenIndex, activeIndex) => {
+      const scaled = input.minWeight + (raw[activeIndex] / rawTotal) * variableBudget;
+      weights[tokenIndex] = scaled;
+    });
+
+    // Cap breaches of max weight and redistribute remaining budget iteratively.
+    for (let iteration = 0; iteration < 12; iteration++) {
+      const aboveLimit = input.activeIndexes.filter(
+        (index) => weights[index] > input.maxWeight + 1e-9,
+      );
+      if (!aboveLimit.length) {
+        break;
+      }
+
+      let excess = 0;
+      for (const index of aboveLimit) {
+        excess += weights[index] - input.maxWeight;
+        weights[index] = input.maxWeight;
+      }
+
+      const belowLimit = input.activeIndexes.filter(
+        (index) => weights[index] < input.maxWeight - 1e-9,
+      );
+      if (!belowLimit.length) {
+        break;
+      }
+
+      const room = belowLimit.reduce((sum, index) => sum + (input.maxWeight - weights[index]), 0);
+      if (room <= 0) {
+        break;
+      }
+
+      for (const index of belowLimit) {
+        const share = (input.maxWeight - weights[index]) / room;
+        weights[index] += excess * share;
+      }
+    }
+
+    return weights;
   }
 }

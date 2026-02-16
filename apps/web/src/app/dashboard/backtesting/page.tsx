@@ -21,6 +21,10 @@ export default function BacktestingPage() {
     entryCandidatesCsv: '0.2,0.3,0.4,0.5',
     exitCandidatesCsv: '0.15,0.2,0.25,0.3',
     topN: '5',
+    minWeightPercent: '0',
+    maxWeightPercent: '100',
+    maxActiveInstruments: '10',
+    candidateCount: '120',
     interval: '5minute',
     fromDate: '',
     toDate: '',
@@ -229,6 +233,10 @@ export default function BacktestingPage() {
         walkForwardWindows: Number(form.walkForwardWindows),
         initialCapital: Number(form.initialCapital),
         topN: Number(form.topN),
+        minWeightPercent: Number(form.minWeightPercent),
+        maxWeightPercent: Number(form.maxWeightPercent),
+        maxActiveInstruments: Number(form.maxActiveInstruments),
+        candidateCount: Number(form.candidateCount),
       };
 
       console.log('run-portfolio-optimization-payload', payload);
@@ -473,6 +481,52 @@ export default function BacktestingPage() {
                 max={30}
                 value={form.topN}
                 onChange={(event) => setForm({ ...form, topN: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Min weight % (portfolio optimization)">
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step="1"
+                value={form.minWeightPercent}
+                onChange={(event) => setForm({ ...form, minWeightPercent: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Max weight % (portfolio optimization)">
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step="1"
+                value={form.maxWeightPercent}
+                onChange={(event) => setForm({ ...form, maxWeightPercent: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Max active instruments">
+              <input
+                type="number"
+                min={1}
+                max={50}
+                step="1"
+                value={form.maxActiveInstruments}
+                onChange={(event) =>
+                  setForm({ ...form, maxActiveInstruments: event.target.value })
+                }
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Candidate portfolios to evaluate">
+              <input
+                type="number"
+                min={10}
+                max={500}
+                step="1"
+                value={form.candidateCount}
+                onChange={(event) => setForm({ ...form, candidateCount: event.target.value })}
                 className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
               />
             </Field>

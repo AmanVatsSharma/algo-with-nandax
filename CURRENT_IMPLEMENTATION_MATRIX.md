@@ -80,7 +80,7 @@ This document reflects **actual code state** and intentionally separates shipped
 | API backtesting engine (v1.5 deterministic+) | ✅ | `POST /backtesting/run` supports slippage, stop-loss/take-profit, walk-forward windows |
 | Portfolio backtesting baseline | ✅ | `POST /backtesting/run-portfolio` aggregates multi-instrument simulations |
 | Backtesting optimization baseline | ✅ | `POST /backtesting/optimize` ranks threshold combinations via grid-search |
-| Portfolio optimization baseline | ✅ | `POST /backtesting/optimize-portfolio` ranks candidate weight allocations |
+| Portfolio optimization baseline | ✅ | `POST /backtesting/optimize-portfolio` now supports min/max weights, max-active constraints, candidate-count controls, and ranks feasible allocations |
 
 ## Advanced Platform
 
@@ -88,7 +88,7 @@ This document reflects **actual code state** and intentionally separates shipped
 |---|---|---|
 | Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted decision logs + governance summary API; centralized policy engine pending |
 | AI cost ledger baseline | ✅ | Daily rollup table + scheduler + governance ledger API shipped |
-| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + market-impact + portfolio + threshold/weight optimization baseline shipped; institutional microstructure optimizer pending |
+| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + market-impact + constrained portfolio optimization baseline shipped; institutional microstructure optimizer pending |
 | Multi-tenant white-label | 📌 | Planned |
 | SSO/SAML enterprise auth | 📌 | Planned |
 
