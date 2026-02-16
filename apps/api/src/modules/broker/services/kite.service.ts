@@ -13,6 +13,18 @@ interface KiteApiResponse<T> {
   error_type?: string;
 }
 
+export interface KiteOrderHistoryEntry {
+  order_id: string;
+  status: string;
+  average_price: number;
+  filled_quantity: number;
+  pending_quantity: number;
+  cancelled_quantity: number;
+  order_timestamp?: string;
+  exchange_timestamp?: string;
+  status_message?: string;
+}
+
 @Injectable()
 export class KiteService {
   private readonly logger = new Logger(KiteService.name);
@@ -163,6 +175,39 @@ export class KiteService {
       this.logKiteError('getOrders', error);
       throw error;
     }
+  }
+
+  /**
+   * Get order history entries for a specific order id.
+   */
+  async getOrderHistory(accessToken: string, orderId: string, apiKey?: string) {
+    try {
+      const response = await firstValueFrom<AxiosResponse<KiteApiResponse<KiteOrderHistoryEntry[]>>>(
+        this.httpService.get<KiteApiResponse<KiteOrderHistoryEntry[]>>(
+          `${this.baseUrl}/orders/${orderId}`,
+          {
+            headers: this.getHeaders(accessToken, apiKey),
+          },
+        ),
+      );
+
+      return response.data.data ?? [];
+    } catch (error) {
+      this.logKiteError('getOrderHistory', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get latest known order state from order history.
+   */
+  async getLatestOrderState(accessToken: string, orderId: string, apiKey?: string) {
+    const history = await this.getOrderHistory(accessToken, orderId, apiKey);
+    if (!history.length) {
+      return null;
+    }
+
+    return history[history.length - 1];
   }
 
   /**

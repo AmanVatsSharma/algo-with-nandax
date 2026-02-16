@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BrokerConnection, BrokerType, ConnectionStatus } from './entities/broker-connection.entity';
-import { KiteService } from './services/kite.service';
+import { KiteOrderHistoryEntry, KiteService } from './services/kite.service';
 import { getErrorMessage } from '@/common/utils/error.utils';
 import { TokenCryptoService } from '@/common/services/token-crypto.service';
 
@@ -235,6 +235,32 @@ export class BrokerService {
       interval,
       fromDate,
       toDate,
+      connection.apiKey,
+    );
+  }
+
+  async getKiteOrderHistory(
+    userId: string,
+    connectionId: string,
+    orderId: string,
+  ): Promise<KiteOrderHistoryEntry[]> {
+    const connection = await this.getConnectionByIdInternal(connectionId, userId);
+    return this.kiteService.getOrderHistory(
+      this.requireAccessToken(connection),
+      orderId,
+      connection.apiKey,
+    );
+  }
+
+  async getKiteLatestOrderState(
+    userId: string,
+    connectionId: string,
+    orderId: string,
+  ): Promise<KiteOrderHistoryEntry | null> {
+    const connection = await this.getConnectionByIdInternal(connectionId, userId);
+    return this.kiteService.getLatestOrderState(
+      this.requireAccessToken(connection),
+      orderId,
       connection.apiKey,
     );
   }

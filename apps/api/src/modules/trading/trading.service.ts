@@ -105,6 +105,14 @@ export class TradingService {
     return this.findById(tradeId);
   }
 
+  async markEntryOrderPlaced(tradeId: string, orderId: string): Promise<Trade> {
+    await this.tradeRepository.update(tradeId, {
+      entryOrderId: orderId,
+      orderStatus: OrderStatus.PLACED,
+    });
+    return this.findById(tradeId);
+  }
+
   async updateExitExecution(
     tradeId: string,
     executedPrice: number,
@@ -130,6 +138,15 @@ export class TradingService {
       exitReason,
     });
 
+    return this.findById(tradeId);
+  }
+
+  async markExitOrderPlaced(tradeId: string, orderId: string, exitReason?: string): Promise<Trade> {
+    await this.tradeRepository.update(tradeId, {
+      exitOrderId: orderId,
+      orderStatus: OrderStatus.PLACED,
+      exitReason,
+    });
     return this.findById(tradeId);
   }
 
