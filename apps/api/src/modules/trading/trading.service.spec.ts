@@ -5,7 +5,7 @@ describe('TradingService PnL direction', () => {
   let service: TradingService;
 
   beforeEach(() => {
-    service = new TradingService({} as any);
+    service = new TradingService({} as any, {} as any);
   });
 
   it('calculates BUY pnl as exit minus entry', () => {

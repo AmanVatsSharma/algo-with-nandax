@@ -2,12 +2,17 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
 import { Trade, TradeStatus, OrderStatus, OrderSide } from './entities/trade.entity';
+import { BrokerService } from '../broker/broker.service';
+import { getErrorMessage } from '@/common/utils/error.utils';
+
+const PENDING_RECONCILIATION_STATUSES: OrderStatus[] = [OrderStatus.PLACED];
 
 @Injectable()
 export class TradingService {
   constructor(
     @InjectRepository(Trade)
     private readonly tradeRepository: Repository<Trade>,
+    private readonly brokerService: BrokerService,
   ) {}
 
   async create(tradeData: Partial<Trade>): Promise<Trade> {
@@ -193,6 +198,103 @@ export class TradingService {
       totalPnL,
       winRate,
     };
+  }
+
+  async reconcileTrades(
+    userId: string,
+    payload: {
+      tradeId?: string;
+      connectionId?: string;
+      maxItems?: number;
+    },
+  ) {
+    const maxItems = Math.min(Math.max(payload.maxItems ?? 50, 1), 200);
+    const trades = payload.tradeId
+      ? [await this.findByIdAndUser(payload.tradeId, userId)]
+      : await this.tradeRepository.find({
+          where: {
+            userId,
+            orderStatus: PENDING_RECONCILIATION_STATUSES[0],
+            ...(payload.connectionId ? { connectionId: payload.connectionId } : {}),
+          },
+          order: { createdAt: 'DESC' },
+          take: maxItems,
+        });
+
+    const result = {
+      processed: 0,
+      executed: 0,
+      rejected: 0,
+      cancelled: 0,
+      open: 0,
+      failed: 0,
+      details: [] as Array<Record<string, unknown>>,
+    };
+
+    for (const trade of trades) {
+      const isExitOrderPending = trade.status === TradeStatus.OPEN && Boolean(trade.exitOrderId);
+      const orderId = isExitOrderPending ? trade.exitOrderId : trade.entryOrderId;
+
+      if (!orderId || !trade.connectionId) {
+        result.failed += 1;
+        result.details.push({
+          tradeId: trade.id,
+          status: 'failed',
+          reason: 'Missing orderId or connectionId for reconciliation',
+        });
+        continue;
+      }
+
+      try {
+        const latestState = await this.brokerService.getKiteLatestOrderState(
+          userId,
+          trade.connectionId,
+          orderId,
+        );
+        const status = String(latestState?.status ?? '').toLowerCase();
+        const averagePrice = Number(latestState?.average_price ?? 0);
+        const resolvedPrice = Number.isFinite(averagePrice) && averagePrice > 0
+          ? averagePrice
+          : Number(isExitOrderPending ? trade.executedExitPrice ?? trade.exitPrice ?? trade.entryPrice : trade.executedEntryPrice ?? trade.entryPrice);
+        const statusMessage = latestState?.status_message ?? undefined;
+
+        if (status === 'complete') {
+          if (isExitOrderPending) {
+            await this.updateExitExecution(trade.id, resolvedPrice, orderId, trade.exitReason);
+          } else {
+            await this.updateEntryExecution(trade.id, resolvedPrice, orderId);
+          }
+          result.executed += 1;
+          result.details.push({ tradeId: trade.id, status: 'executed', orderId });
+        } else if (status === 'rejected') {
+          await this.updateOrderStatus(trade.id, OrderStatus.REJECTED, statusMessage);
+          result.rejected += 1;
+          result.details.push({ tradeId: trade.id, status: 'rejected', orderId, statusMessage });
+        } else if (status === 'cancelled' || status === 'canceled') {
+          if (isExitOrderPending) {
+            await this.updateOrderStatus(trade.id, OrderStatus.CANCELLED, statusMessage);
+          } else {
+            await this.cancelTrade(trade.id);
+          }
+          result.cancelled += 1;
+          result.details.push({ tradeId: trade.id, status: 'cancelled', orderId, statusMessage });
+        } else {
+          result.open += 1;
+          result.details.push({ tradeId: trade.id, status: 'open', orderId, brokerStatus: status || 'unknown' });
+        }
+
+        result.processed += 1;
+      } catch (error) {
+        result.failed += 1;
+        result.details.push({
+          tradeId: trade.id,
+          status: 'failed',
+          reason: getErrorMessage(error),
+        });
+      }
+    }
+
+    return result;
   }
 
   private calculatePnL(

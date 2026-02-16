@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ExecuteTradeDto } from './dto/execute-trade.dto';
 import { CloseTradeDto } from './dto/close-trade.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
+import { ReconcileTradesDto } from './dto/reconcile-trades.dto';
 
 @Controller('trades')
 @UseGuards(JwtAuthGuard)
@@ -67,5 +68,11 @@ export class TradingController {
   @Get(':id')
   async findOne(@Request() req, @Param('id') id: string) {
     return this.tradingService.findByIdAndUser(id, req.user.userId);
+  }
+
+  @Post('reconcile')
+  @Audit({ action: 'trade.reconcile', resourceType: 'trade' })
+  async reconcile(@Request() req, @Body() body: ReconcileTradesDto) {
+    return this.tradingService.reconcileTrades(req.user.userId, body);
   }
 }
