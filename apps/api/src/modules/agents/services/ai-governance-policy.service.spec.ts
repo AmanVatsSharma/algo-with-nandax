@@ -1,8 +1,14 @@
 import { AIGovernancePolicyService } from './ai-governance-policy.service';
 
 describe('AIGovernancePolicyService', () => {
-  const repositoryMock = {
+  const decisionLogRepositoryMock = {
     find: jest.fn(async () => []),
+  };
+  const profileRepositoryMock = {
+    findOne: jest.fn(async () => null),
+    create: jest.fn((payload) => payload),
+    save: jest.fn(async (payload) => payload),
+    update: jest.fn(async () => ({ affected: 1 })),
   };
 
   const configServiceMock = {
@@ -15,13 +21,21 @@ describe('AIGovernancePolicyService', () => {
     jest.clearAllMocks();
     configServiceMock.get.mockImplementation((_: string, fallback?: string) => fallback);
     service = new AIGovernancePolicyService(
-      repositoryMock as any,
+      decisionLogRepositoryMock as any,
+      profileRepositoryMock as any,
       configServiceMock as any,
     );
   });
 
   it('allows live inference when budgets are disabled', async () => {
-    repositoryMock.find.mockResolvedValue([
+    profileRepositoryMock.findOne.mockResolvedValue({
+      userId: 'user-1',
+      liveInferenceEnabled: true,
+      dailyCostBudgetUsd: 0,
+      dailyTokenBudget: 0,
+      providerDailyCostBudgetUsd: 0,
+    });
+    decisionLogRepositoryMock.find.mockResolvedValue([
       { provider: 'openai', estimatedCostUsd: 0.001, estimatedTokens: 100 },
     ]);
 
@@ -35,18 +49,20 @@ describe('AIGovernancePolicyService', () => {
   });
 
   it('blocks when daily total cost budget is exceeded', async () => {
-    configServiceMock.get.mockImplementation((key: string, fallback?: string) => {
-      if (key === 'AI_DAILY_COST_BUDGET_USD') {
-        return '0.001';
-      }
-      return fallback;
+    profileRepositoryMock.findOne.mockResolvedValue({
+      userId: 'user-1',
+      liveInferenceEnabled: true,
+      dailyCostBudgetUsd: 0.001,
+      dailyTokenBudget: 0,
+      providerDailyCostBudgetUsd: 0,
     });
 
     service = new AIGovernancePolicyService(
-      repositoryMock as any,
+      decisionLogRepositoryMock as any,
+      profileRepositoryMock as any,
       configServiceMock as any,
     );
-    repositoryMock.find.mockResolvedValue([
+    decisionLogRepositoryMock.find.mockResolvedValue([
       { provider: 'openai', estimatedCostUsd: 0.002, estimatedTokens: 120 },
     ]);
 
@@ -57,5 +73,39 @@ describe('AIGovernancePolicyService', () => {
 
     expect(result.allowed).toBe(false);
     expect(result.reason).toBe('daily-cost-budget-exceeded');
+  });
+
+  it('updates and returns policy profile', async () => {
+    profileRepositoryMock.findOne
+      .mockResolvedValueOnce({
+        id: 'profile-1',
+        userId: 'user-1',
+        liveInferenceEnabled: true,
+        dailyCostBudgetUsd: 0,
+        dailyTokenBudget: 0,
+        providerDailyCostBudgetUsd: 0,
+        policyNote: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'profile-1',
+        userId: 'user-1',
+        liveInferenceEnabled: false,
+        dailyCostBudgetUsd: 2,
+        dailyTokenBudget: 5000,
+        providerDailyCostBudgetUsd: 1,
+        policyNote: 'tighten budget',
+      });
+
+    const updated = await service.updatePolicyProfile('user-1', {
+      liveInferenceEnabled: false,
+      dailyCostBudgetUsd: 2,
+      dailyTokenBudget: 5000,
+      providerDailyCostBudgetUsd: 1,
+      policyNote: 'tighten budget',
+    });
+
+    expect(profileRepositoryMock.update).toHaveBeenCalledTimes(1);
+    expect(updated.liveInferenceEnabled).toBe(false);
+    expect(updated.dailyTokenBudget).toBe(5000);
   });
 });

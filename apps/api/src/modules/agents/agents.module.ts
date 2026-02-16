@@ -14,6 +14,7 @@ import { AgentProcessor } from './processors/agent.processor';
 import { Agent } from './entities/agent.entity';
 import { AIDecisionLog } from './entities/ai-decision-log.entity';
 import { AICostLedger } from './entities/ai-cost-ledger.entity';
+import { AIGovernanceProfile } from './entities/ai-governance-profile.entity';
 import { StrategyModule } from '../strategy/strategy.module';
 import { TradingModule } from '../trading/trading.module';
 import { BrokerModule } from '../broker/broker.module';
@@ -21,7 +22,7 @@ import { RiskModule } from '../risk/risk.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Agent, AIDecisionLog, AICostLedger]),
+    TypeOrmModule.forFeature([Agent, AIDecisionLog, AICostLedger, AIGovernanceProfile]),
     BullModule.registerQueue({
       name: 'agents',
     }),

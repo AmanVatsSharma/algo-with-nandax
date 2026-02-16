@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
 import { AIDecisionLog } from '../entities/ai-decision-log.entity';
+import { AIGovernanceProfile } from '../entities/ai-governance-profile.entity';
+import { UpdateAIGovernancePolicyDto } from '../dto/update-ai-governance-policy.dto';
 
 @Injectable()
 export class AIGovernancePolicyService {
@@ -11,8 +13,70 @@ export class AIGovernancePolicyService {
   constructor(
     @InjectRepository(AIDecisionLog)
     private readonly aiDecisionLogRepository: Repository<AIDecisionLog>,
+    @InjectRepository(AIGovernanceProfile)
+    private readonly aiGovernanceProfileRepository: Repository<AIGovernanceProfile>,
     private readonly configService: ConfigService,
   ) {}
+
+  async getOrCreatePolicyProfile(userId: string) {
+    const existing = await this.aiGovernanceProfileRepository.findOne({
+      where: { userId },
+    });
+    if (existing) {
+      return existing;
+    }
+
+    const profile = this.aiGovernanceProfileRepository.create({
+      userId,
+      liveInferenceEnabled: true,
+      dailyCostBudgetUsd: 0,
+      dailyTokenBudget: 0,
+      providerDailyCostBudgetUsd: 0,
+      policyNote: null,
+    });
+    return this.aiGovernanceProfileRepository.save(profile);
+  }
+
+  async updatePolicyProfile(userId: string, dto: UpdateAIGovernancePolicyDto) {
+    const profile = await this.getOrCreatePolicyProfile(userId);
+    await this.aiGovernanceProfileRepository.update(profile.id, {
+      ...(dto.liveInferenceEnabled !== undefined
+        ? { liveInferenceEnabled: dto.liveInferenceEnabled }
+        : {}),
+      ...(dto.dailyCostBudgetUsd !== undefined ? { dailyCostBudgetUsd: dto.dailyCostBudgetUsd } : {}),
+      ...(dto.dailyTokenBudget !== undefined ? { dailyTokenBudget: dto.dailyTokenBudget } : {}),
+      ...(dto.providerDailyCostBudgetUsd !== undefined
+        ? { providerDailyCostBudgetUsd: dto.providerDailyCostBudgetUsd }
+        : {}),
+      ...(dto.policyNote !== undefined ? { policyNote: dto.policyNote } : {}),
+    });
+
+    return this.getOrCreatePolicyProfile(userId);
+  }
+
+  async getEffectivePolicy(userId: string) {
+    const profile = await this.getOrCreatePolicyProfile(userId);
+    const envDefaults = this.getDefaultBudgetsFromEnv();
+    return {
+      profile,
+      effective: {
+        liveInferenceEnabled: profile.liveInferenceEnabled,
+        dailyCostBudgetUsd:
+          Number(profile.dailyCostBudgetUsd ?? 0) > 0
+            ? Number(profile.dailyCostBudgetUsd)
+            : envDefaults.dailyCostBudgetUsd,
+        dailyTokenBudget:
+          Number(profile.dailyTokenBudget ?? 0) > 0
+            ? Number(profile.dailyTokenBudget)
+            : envDefaults.dailyTokenBudget,
+        providerDailyCostBudgetUsd:
+          Number(profile.providerDailyCostBudgetUsd ?? 0) > 0
+            ? Number(profile.providerDailyCostBudgetUsd)
+            : envDefaults.providerDailyCostBudgetUsd,
+      },
+      defaults: envDefaults,
+    };
+  }
 
   async evaluateLiveInferencePolicy(input: {
     userId: string;
@@ -29,26 +93,28 @@ export class AIGovernancePolicyService {
       providerDailyCostBudgetUsd: number;
     };
   }> {
-    const dailyCostBudgetUsd = this.parseNumber(
-      this.configService.get<string>('AI_DAILY_COST_BUDGET_USD', '0'),
-      0,
-      0,
-      1_000_000,
-    );
-    const dailyTokenBudget = Math.floor(
-      this.parseNumber(
-        this.configService.get<string>('AI_DAILY_TOKEN_BUDGET', '0'),
-        0,
-        0,
-        10_000_000_000,
-      ),
-    );
-    const providerDailyCostBudgetUsd = this.parseNumber(
-      this.configService.get<string>('AI_PROVIDER_DAILY_COST_BUDGET_USD', '0'),
-      0,
-      0,
-      1_000_000,
-    );
+    const policy = await this.getEffectivePolicy(input.userId);
+    const dailyCostBudgetUsd = policy.effective.dailyCostBudgetUsd;
+    const dailyTokenBudget = policy.effective.dailyTokenBudget;
+    const providerDailyCostBudgetUsd = policy.effective.providerDailyCostBudgetUsd;
+
+    if (!policy.effective.liveInferenceEnabled) {
+      this.logger.warn(
+        `AI live policy denied by profile switch user=${input.userId} provider=${input.providerKey}`,
+      );
+      return {
+        allowed: false,
+        reason: 'live-inference-disabled-by-policy',
+        metrics: {
+          totalCostUsd: 0,
+          totalTokens: 0,
+          providerCostUsd: 0,
+          dailyCostBudgetUsd,
+          dailyTokenBudget,
+          providerDailyCostBudgetUsd,
+        },
+      };
+    }
 
     const dayStart = new Date();
     dayStart.setHours(0, 0, 0, 0);
@@ -137,6 +203,35 @@ export class AIGovernancePolicyService {
         dailyTokenBudget,
         providerDailyCostBudgetUsd,
       },
+    };
+  }
+
+  private getDefaultBudgetsFromEnv() {
+    const dailyCostBudgetUsd = this.parseNumber(
+      this.configService.get<string>('AI_DAILY_COST_BUDGET_USD', '0'),
+      0,
+      0,
+      1_000_000,
+    );
+    const dailyTokenBudget = Math.floor(
+      this.parseNumber(
+        this.configService.get<string>('AI_DAILY_TOKEN_BUDGET', '0'),
+        0,
+        0,
+        10_000_000_000,
+      ),
+    );
+    const providerDailyCostBudgetUsd = this.parseNumber(
+      this.configService.get<string>('AI_PROVIDER_DAILY_COST_BUDGET_USD', '0'),
+      0,
+      0,
+      1_000_000,
+    );
+
+    return {
+      dailyCostBudgetUsd,
+      dailyTokenBudget,
+      providerDailyCostBudgetUsd,
     };
   }
 

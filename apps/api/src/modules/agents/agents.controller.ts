@@ -14,11 +14,13 @@ import { AgentsService } from './agents.service';
 import { AgentExecutor } from './services/agent-executor.service';
 import { AIDecisionLogService } from './services/ai-decision-log.service';
 import { AICostLedgerService } from './services/ai-cost-ledger.service';
+import { AIGovernancePolicyService } from './services/ai-governance-policy.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
 import { GetAIGovernanceSummaryDto } from './dto/get-ai-governance-summary.dto';
+import { UpdateAIGovernancePolicyDto } from './dto/update-ai-governance-policy.dto';
 
 @Controller('agents')
 @UseGuards(JwtAuthGuard)
@@ -28,6 +30,7 @@ export class AgentsController {
     private readonly agentExecutor: AgentExecutor,
     private readonly aiDecisionLogService: AIDecisionLogService,
     private readonly aiCostLedgerService: AICostLedgerService,
+    private readonly aiGovernancePolicyService: AIGovernancePolicyService,
   ) {}
 
   @Post()
@@ -49,6 +52,20 @@ export class AgentsController {
   @Get('governance/ledger')
   async getAICostLedger(@Request() req, @Query() query: GetAIGovernanceSummaryDto) {
     return this.aiCostLedgerService.getUserLedger(req.user.userId, query.days ?? 30);
+  }
+
+  @Get('governance/policy')
+  async getAIGovernancePolicy(@Request() req) {
+    return this.aiGovernancePolicyService.getEffectivePolicy(req.user.userId);
+  }
+
+  @Patch('governance/policy')
+  @Audit({ action: 'ai-governance-policy.update', resourceType: 'ai-governance-policy' })
+  async updateAIGovernancePolicy(
+    @Request() req,
+    @Body() dto: UpdateAIGovernancePolicyDto,
+  ) {
+    return this.aiGovernancePolicyService.updatePolicyProfile(req.user.userId, dto);
   }
 
   @Get(':id')

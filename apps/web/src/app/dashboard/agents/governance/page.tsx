@@ -7,18 +7,21 @@ import { agentsApi } from '@/lib/api';
 
 export default function AIGovernancePage() {
   const [loading, setLoading] = useState(true);
+  const [savingPolicy, setSavingPolicy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [summary, setSummary] = useState<any>(null);
   const [ledger, setLedger] = useState<any>(null);
+  const [policy, setPolicy] = useState<any>(null);
   const [days, setDays] = useState('30');
 
   const fetchSummary = async () => {
     setLoading(true);
     setErrorMessage('');
     try {
-      const [summaryResponse, ledgerResponse] = await Promise.all([
+      const [summaryResponse, ledgerResponse, policyResponse] = await Promise.all([
         agentsApi.getGovernanceSummary(Number(days)),
         agentsApi.getGovernanceLedger(Number(days)),
+        agentsApi.getGovernancePolicy(),
       ]);
       console.log('ai-governance-summary-fetch-result', {
         days: Number(days),
@@ -26,6 +29,7 @@ export default function AIGovernancePage() {
       });
       setSummary(summaryResponse.data);
       setLedger(ledgerResponse.data);
+      setPolicy(policyResponse.data);
     } catch (error: any) {
       console.error('ai-governance-summary-fetch-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to load AI governance summary');
@@ -37,6 +41,31 @@ export default function AIGovernancePage() {
   useEffect(() => {
     fetchSummary();
   }, []);
+
+  const savePolicy = async () => {
+    if (!policy) {
+      return;
+    }
+    setSavingPolicy(true);
+    setErrorMessage('');
+    try {
+      const payload = {
+        liveInferenceEnabled: Boolean(policy.profile?.liveInferenceEnabled),
+        dailyCostBudgetUsd: Number(policy.profile?.dailyCostBudgetUsd ?? 0),
+        dailyTokenBudget: Number(policy.profile?.dailyTokenBudget ?? 0),
+        providerDailyCostBudgetUsd: Number(policy.profile?.providerDailyCostBudgetUsd ?? 0),
+        policyNote: String(policy.profile?.policyNote ?? ''),
+      };
+      console.log('ai-governance-policy-save-payload', payload);
+      await agentsApi.updateGovernancePolicy(payload);
+      await fetchSummary();
+    } catch (error: any) {
+      console.error('ai-governance-policy-save-error', error);
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to update governance policy');
+    } finally {
+      setSavingPolicy(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-white">
@@ -120,6 +149,110 @@ export default function AIGovernancePage() {
                 <pre className="text-xs overflow-auto bg-slate-900 border border-slate-700 rounded p-3">
                   {JSON.stringify(ledger, null, 2)}
                 </pre>
+              </div>
+
+              <div className="rounded-lg border border-slate-700 bg-slate-800 p-4 space-y-3">
+                <p className="text-sm font-semibold">Live AI governance policy</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(policy?.profile?.liveInferenceEnabled)}
+                      onChange={(event) =>
+                        setPolicy((previous: any) => ({
+                          ...previous,
+                          profile: {
+                            ...previous?.profile,
+                            liveInferenceEnabled: event.target.checked,
+                          },
+                        }))
+                      }
+                    />
+                    <span>Enable live inference</span>
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-slate-300">Daily cost budget (USD)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      value={String(policy?.profile?.dailyCostBudgetUsd ?? 0)}
+                      onChange={(event) =>
+                        setPolicy((previous: any) => ({
+                          ...previous,
+                          profile: {
+                            ...previous?.profile,
+                            dailyCostBudgetUsd: event.target.value,
+                          },
+                        }))
+                      }
+                      className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-slate-300">Daily token budget</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={String(policy?.profile?.dailyTokenBudget ?? 0)}
+                      onChange={(event) =>
+                        setPolicy((previous: any) => ({
+                          ...previous,
+                          profile: {
+                            ...previous?.profile,
+                            dailyTokenBudget: event.target.value,
+                          },
+                        }))
+                      }
+                      className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-slate-300">Provider daily cost budget (USD)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.001"
+                      value={String(policy?.profile?.providerDailyCostBudgetUsd ?? 0)}
+                      onChange={(event) =>
+                        setPolicy((previous: any) => ({
+                          ...previous,
+                          profile: {
+                            ...previous?.profile,
+                            providerDailyCostBudgetUsd: event.target.value,
+                          },
+                        }))
+                      }
+                      className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm md:col-span-2">
+                    <span className="text-slate-300">Policy note</span>
+                    <input
+                      type="text"
+                      value={String(policy?.profile?.policyNote ?? '')}
+                      onChange={(event) =>
+                        setPolicy((previous: any) => ({
+                          ...previous,
+                          profile: {
+                            ...previous?.profile,
+                            policyNote: event.target.value,
+                          },
+                        }))
+                      }
+                      className="mt-1 w-full rounded bg-slate-900 border border-slate-700 px-3 py-2"
+                    />
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={savePolicy}
+                  disabled={savingPolicy}
+                  className="rounded bg-violet-600 hover:bg-violet-700 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  {savingPolicy ? 'Saving policy...' : 'Save policy'}
+                </button>
               </div>
 
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">

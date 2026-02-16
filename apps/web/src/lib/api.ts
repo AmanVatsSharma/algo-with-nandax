@@ -83,6 +83,14 @@ export const agentsApi = {
     api.get(`/agents/governance/summary?days=${days}`),
   getGovernanceLedger: (days: number = 30) =>
     api.get(`/agents/governance/ledger?days=${days}`),
+  getGovernancePolicy: () => api.get('/agents/governance/policy'),
+  updateGovernancePolicy: (data: {
+    liveInferenceEnabled?: boolean;
+    dailyCostBudgetUsd?: number;
+    dailyTokenBudget?: number;
+    providerDailyCostBudgetUsd?: number;
+    policyNote?: string;
+  }) => api.patch('/agents/governance/policy', data),
   create: (data: any) => api.post('/agents', data),
   update: (id: string, data: any) => api.patch(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),

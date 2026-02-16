@@ -56,12 +56,14 @@ flowchart TD
   - `GET /api/v1/agents/:id/decision-logs?limit=100`
   - `GET /api/v1/agents/governance/summary?days=30`
   - `GET /api/v1/agents/governance/ledger?days=30`
+  - `GET /api/v1/agents/governance/policy`
+  - `PATCH /api/v1/agents/governance/policy`
 - Hourly ledger rebuild scheduler aggregates daily AI usage/cost:
   - `AI_COST_LEDGER_SCHEDULER_ENABLED=true`
 
 ## Remaining limitation
 
-- Full policy governance is still evolving (current controls are daily budget thresholds, not organization-wide policy workflows/approvals).
+- Full policy governance is still evolving (current controls include profile-managed daily budget thresholds, but not organization-wide approval workflows).
 
 ## AI runtime configuration
 
@@ -73,3 +75,17 @@ flowchart TD
 - `AI_DAILY_COST_BUDGET_USD` (optional, default `0` disabled)
 - `AI_DAILY_TOKEN_BUDGET` (optional, default `0` disabled)
 - `AI_PROVIDER_DAILY_COST_BUDGET_USD` (optional, default `0` disabled)
+
+## Governance policy flow
+
+```mermaid
+flowchart TD
+  A[Live AI decision requested] --> B[Load user governance profile]
+  B --> C[Resolve effective budgets profile + env defaults]
+  C --> D{liveInferenceEnabled}
+  D -->|no| E[Block live call and fallback deterministic]
+  D -->|yes| F[Aggregate today's decision-log spend/tokens]
+  F --> G{Budget exceeded?}
+  G -->|yes| E
+  G -->|no| H[Allow live provider call]
+```
