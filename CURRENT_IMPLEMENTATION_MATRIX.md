@@ -72,13 +72,14 @@ This document reflects **actual code state** and intentionally separates shipped
 | Missing dashboard route fixes | ✅ | settings / agents/new / strategies/new / accounts/[id] |
 | Broker connect popup flow | ✅ | Callback + window message flow |
 | End-to-end polished strategy backtest UI | 📌 | Not shipped yet |
+| API backtesting engine (v1 deterministic) | ✅ | `POST /backtesting/run` with historical candle simulation |
 
 ## Advanced Platform
 
 | Capability | Status | Notes |
 |---|---|---|
 | Multi-provider AI orchestration | 📌 | Planned |
-| Full backtesting engine | 📌 | Planned |
+| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | v1 API shipped; advanced features pending |
 | Multi-tenant white-label | 📌 | Planned |
 | SSO/SAML enterprise auth | 📌 | Planned |
 

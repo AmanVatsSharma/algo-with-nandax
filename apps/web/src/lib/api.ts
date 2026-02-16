@@ -118,3 +118,17 @@ export const portfolioApi = {
   getPositions: (id: string) => api.get(`/portfolios/${id}/positions`),
   getOpenPositions: (id: string) => api.get(`/portfolios/${id}/positions/open`),
 };
+
+export const backtestingApi = {
+  run: (data: {
+    connectionId: string;
+    instrumentToken: string;
+    interval: string;
+    fromDate: string;
+    toDate: string;
+    quantity?: number;
+    entryThresholdPercent?: number;
+    exitThresholdPercent?: number;
+    feePerTrade?: number;
+  }) => api.post('/backtesting/run', data),
+};

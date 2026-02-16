@@ -1,0 +1,43 @@
+import { BacktestingService } from './backtesting.service';
+
+describe('BacktestingService', () => {
+  const brokerServiceMock = {
+    getKiteHistoricalData: jest.fn(),
+  };
+
+  let service: BacktestingService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    service = new BacktestingService(brokerServiceMock as any);
+  });
+
+  it('returns summary and trades from historical candles', async () => {
+    brokerServiceMock.getKiteHistoricalData.mockResolvedValue({
+      candles: [
+        ['2026-01-01T09:15:00+0530', 100, 101, 99, 100, 1000],
+        ['2026-01-01T09:20:00+0530', 100, 102, 100, 101, 1200],
+        ['2026-01-01T09:25:00+0530', 101, 103, 100, 102, 900],
+        ['2026-01-01T09:30:00+0530', 102, 103, 98, 99, 1500],
+        ['2026-01-01T09:35:00+0530', 99, 100, 95, 96, 2000],
+      ],
+    });
+
+    const result = await service.runBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentToken: '12345',
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      quantity: 10,
+      entryThresholdPercent: 0.4,
+      exitThresholdPercent: 0.3,
+      feePerTrade: 0,
+    });
+
+    expect(result.summary.totalTrades).toBeGreaterThanOrEqual(1);
+    expect(Array.isArray(result.trades)).toBe(true);
+    expect(Array.isArray(result.equityCurve)).toBe(true);
+    expect(brokerServiceMock.getKiteHistoricalData).toHaveBeenCalledTimes(1);
+  });
+});

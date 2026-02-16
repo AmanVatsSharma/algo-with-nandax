@@ -18,6 +18,7 @@ import { WebsocketModule } from './modules/websocket/websocket.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { HealthModule } from './modules/health/health.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { BacktestingModule } from './modules/backtesting/backtesting.module';
 
 // Config
 import { typeOrmConfig } from './config/typeorm.config';
@@ -72,6 +73,7 @@ import { typeOrmConfig } from './config/typeorm.config';
     AnalyticsModule,
     HealthModule,
     AuditModule,
+    BacktestingModule,
   ],
 })
 export class AppModule {}
