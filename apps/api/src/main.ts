@@ -5,6 +5,7 @@ import { AppModule } from './app.module';
 import { randomUUID } from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -33,6 +34,7 @@ async function bootstrap() {
       },
     }),
   );
+  app.useGlobalFilters(new HttpExceptionFilter());
 
   app.use(cookieParser());
 
