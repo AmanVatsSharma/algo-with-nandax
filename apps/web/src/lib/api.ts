@@ -133,6 +133,8 @@ export const backtestingApi = {
     exitThresholdPercent?: number;
     feePerTrade?: number;
     slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;
@@ -150,6 +152,8 @@ export const backtestingApi = {
     exitThresholdPercent?: number;
     feePerTrade?: number;
     slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;
@@ -164,6 +168,8 @@ export const backtestingApi = {
     quantity?: number;
     feePerTrade?: number;
     slippageBps?: number;
+    impactBps?: number;
+    maxParticipationRate?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;

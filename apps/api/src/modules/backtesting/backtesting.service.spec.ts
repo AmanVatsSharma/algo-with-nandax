@@ -36,6 +36,8 @@ describe('BacktestingService', () => {
       exitThresholdPercent: 0.3,
       feePerTrade: 0,
       slippageBps: 10,
+      impactBps: 5,
+      maxParticipationRate: 0.05,
       stopLossPercent: 0.6,
       takeProfitPercent: 1.2,
       walkForwardWindows: 2,
@@ -47,6 +49,8 @@ describe('BacktestingService', () => {
     expect(Array.isArray(result.equityCurve)).toBe(true);
     expect(Array.isArray(result.windows)).toBe(true);
     expect(result.configUsed.slippageBps).toBe(10);
+    expect(result.configUsed.impactBps).toBe(5);
+    expect(result.summary.totalImpactCost).toBeGreaterThanOrEqual(0);
     expect(result.summary.endingEquity).toBeCloseTo(100000 + result.summary.totalPnL, 5);
     expect(brokerServiceMock.getKiteHistoricalData).toHaveBeenCalledTimes(1);
   });

@@ -32,6 +32,7 @@ Backtesting module provides a first production-safe historical simulation pipeli
 - Uses threshold-based momentum/reversal entries.
 - Supports long and short simulated positions.
 - Applies configurable slippage and fixed per-trade cost.
+- Applies configurable slippage and market impact cost model.
 - Applies optional stop-loss and take-profit constraints.
 - Supports walk-forward style segmented runs over multiple windows.
 - Computes net PnL, ending equity, max drawdown, and per-window summaries.
@@ -79,3 +80,4 @@ flowchart TD
 
 - This remains deterministic and intentionally lightweight.
 - Future versions should add market impact models, portfolio-level allocation, and richer strategy DSL support.
+- Current market impact model is baseline (bps + participation multiplier), not full microstructure simulation.

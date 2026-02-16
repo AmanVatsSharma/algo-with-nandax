@@ -29,6 +29,8 @@ export default function BacktestingPage() {
     exitThresholdPercent: '0.2',
     feePerTrade: '0',
     slippageBps: '0',
+    impactBps: '0',
+    maxParticipationRate: '0.05',
     stopLossPercent: '0.6',
     takeProfitPercent: '1.2',
     walkForwardWindows: '1',
@@ -72,6 +74,8 @@ export default function BacktestingPage() {
         exitThresholdPercent: Number(form.exitThresholdPercent),
         feePerTrade: Number(form.feePerTrade),
         slippageBps: Number(form.slippageBps),
+        impactBps: Number(form.impactBps),
+        maxParticipationRate: Number(form.maxParticipationRate),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -124,6 +128,8 @@ export default function BacktestingPage() {
         exitThresholdPercent: Number(form.exitThresholdPercent),
         feePerTrade: Number(form.feePerTrade),
         slippageBps: Number(form.slippageBps),
+        impactBps: Number(form.impactBps),
+        maxParticipationRate: Number(form.maxParticipationRate),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -170,6 +176,8 @@ export default function BacktestingPage() {
         quantity: Number(form.quantity),
         feePerTrade: Number(form.feePerTrade),
         slippageBps: Number(form.slippageBps),
+        impactBps: Number(form.impactBps),
+        maxParticipationRate: Number(form.maxParticipationRate),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -357,6 +365,29 @@ export default function BacktestingPage() {
                 step="0.05"
                 value={form.stopLossPercent}
                 onChange={(event) => setForm({ ...form, stopLossPercent: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Market impact (bps)">
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={form.impactBps}
+                onChange={(event) => setForm({ ...form, impactBps: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Max participation rate">
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.01"
+                value={form.maxParticipationRate}
+                onChange={(event) =>
+                  setForm({ ...form, maxParticipationRate: event.target.value })
+                }
                 className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
               />
             </Field>

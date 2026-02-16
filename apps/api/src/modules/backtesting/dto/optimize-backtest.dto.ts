@@ -77,6 +77,20 @@ export class OptimizeBacktestDto {
   initialCapital?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1000)
+  impactBps?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  maxParticipationRate?: number;
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @Type(() => Number)

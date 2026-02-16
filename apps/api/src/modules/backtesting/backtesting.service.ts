@@ -20,6 +20,7 @@ interface SimulatedTrade {
   exitPrice: number;
   quantity: number;
   pnl: number;
+  impactCost: number;
   entryTime: string;
   exitTime: string;
 }
@@ -106,6 +107,8 @@ export class BacktestingService {
         takeProfitPercent: dto.takeProfitPercent,
         walkForwardWindows: dto.walkForwardWindows,
         initialCapital: allocatedCapital,
+          impactBps: dto.impactBps,
+          maxParticipationRate: dto.maxParticipationRate,
       });
 
       instrumentSummaries.push({
@@ -127,6 +130,10 @@ export class BacktestingService {
       left.exitTime.localeCompare(right.exitTime),
     );
     const totalPnL = sortedTrades.reduce((sum, trade) => sum + Number(trade.pnl ?? 0), 0);
+    const totalImpactCost = sortedTrades.reduce(
+      (sum, trade) => sum + Number(trade.impactCost ?? 0),
+      0,
+    );
     const winningTrades = sortedTrades.filter((trade) => trade.pnl > 0).length;
     const losingTrades = sortedTrades.filter((trade) => trade.pnl < 0).length;
     const totalTrades = sortedTrades.length;
@@ -148,6 +155,7 @@ export class BacktestingService {
         winRate,
         totalPnL,
         maxDrawdown,
+        totalImpactCost,
         initialCapital,
         endingEquity: initialCapital + totalPnL,
       },
@@ -163,6 +171,8 @@ export class BacktestingService {
         takeProfitPercent: dto.takeProfitPercent ?? 0,
         walkForwardWindows: dto.walkForwardWindows ?? 1,
         initialCapital,
+        impactBps: dto.impactBps ?? 0,
+        maxParticipationRate: dto.maxParticipationRate ?? 0,
       },
       instruments: instrumentSummaries,
       trades: sortedTrades,
@@ -206,6 +216,8 @@ export class BacktestingService {
           takeProfitPercent: dto.takeProfitPercent,
           walkForwardWindows: dto.walkForwardWindows,
           initialCapital: dto.initialCapital,
+          impactBps: dto.impactBps,
+          maxParticipationRate: dto.maxParticipationRate,
           entryThresholdPercent,
           exitThresholdPercent,
         });
@@ -237,6 +249,8 @@ export class BacktestingService {
         topN,
         entryCandidates,
         exitCandidates,
+        impactBps: dto.impactBps ?? 0,
+        maxParticipationRate: dto.maxParticipationRate ?? 0,
       },
     };
   }
@@ -264,6 +278,8 @@ export class BacktestingService {
     const takeProfitPercent = dto.takeProfitPercent ?? 0;
     const walkForwardWindows = dto.walkForwardWindows ?? 1;
     const initialCapital = dto.initialCapital ?? 0;
+    const impactBps = dto.impactBps ?? 0;
+    const maxParticipationRate = dto.maxParticipationRate ?? 0;
 
     if (candles.length < 2) {
       return {
@@ -274,6 +290,7 @@ export class BacktestingService {
           winRate: 0,
           totalPnL: 0,
           maxDrawdown: 0,
+          totalImpactCost: 0,
           endingEquity: initialCapital,
         },
         configUsed: {
@@ -286,6 +303,8 @@ export class BacktestingService {
           takeProfitPercent,
           walkForwardWindows,
           initialCapital,
+          impactBps,
+          maxParticipationRate,
         },
         trades: [],
         equityCurve: [],
@@ -309,6 +328,8 @@ export class BacktestingService {
         slippageBps,
         stopLossPercent,
         takeProfitPercent,
+        impactBps,
+        maxParticipationRate,
         cumulativePnL,
         windowNumber: index + 1,
       });
@@ -330,6 +351,7 @@ export class BacktestingService {
     const totalTrades = allTrades.length;
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
     const maxDrawdown = this.calculateMaxDrawdown(allEquityCurve, initialCapital);
+    const totalImpactCost = allTrades.reduce((sum, trade) => sum + Number(trade.impactCost ?? 0), 0);
 
     return {
       summary: {
@@ -339,6 +361,7 @@ export class BacktestingService {
         winRate,
         totalPnL,
         maxDrawdown,
+        totalImpactCost,
         endingEquity: initialCapital + totalPnL,
       },
       configUsed: {
@@ -351,6 +374,8 @@ export class BacktestingService {
         takeProfitPercent,
         walkForwardWindows,
         initialCapital,
+        impactBps,
+        maxParticipationRate,
       },
       trades: allTrades,
       equityCurve: allEquityCurve,
@@ -367,6 +392,8 @@ export class BacktestingService {
     slippageBps: number;
     stopLossPercent: number;
     takeProfitPercent: number;
+    impactBps: number;
+    maxParticipationRate: number;
     cumulativePnL: number;
     windowNumber: number;
   }) {
@@ -431,7 +458,15 @@ export class BacktestingService {
             position.side === 'buy'
               ? (exitPrice - position.entryPrice) * input.quantity
               : (position.entryPrice - exitPrice) * input.quantity;
-          const netPnl = grossPnl - input.feePerTrade;
+          const impactCost = this.calculateImpactCost({
+            entryPrice: position.entryPrice,
+            exitPrice,
+            quantity: input.quantity,
+            candleVolume: Number(current.volume ?? 0),
+            impactBps: input.impactBps,
+            maxParticipationRate: input.maxParticipationRate,
+          });
+          const netPnl = grossPnl - input.feePerTrade - impactCost;
 
           trades.push({
             window: input.windowNumber,
@@ -440,6 +475,7 @@ export class BacktestingService {
             exitPrice,
             quantity: input.quantity,
             pnl: netPnl,
+            impactCost,
             entryTime: position.entryTime,
             exitTime: current.timestamp,
           });
@@ -504,6 +540,32 @@ export class BacktestingService {
     }
 
     return maxDrawdown;
+  }
+
+  private calculateImpactCost(input: {
+    entryPrice: number;
+    exitPrice: number;
+    quantity: number;
+    candleVolume: number;
+    impactBps: number;
+    maxParticipationRate: number;
+  }) {
+    const baseImpactRate = Math.max(input.impactBps, 0) / 10_000;
+    if (baseImpactRate <= 0) {
+      return 0;
+    }
+
+    const tradedNotional = (Math.abs(input.entryPrice) + Math.abs(input.exitPrice)) * input.quantity;
+    let impactMultiplier = 1;
+
+    if (input.candleVolume > 0 && input.maxParticipationRate > 0) {
+      const participationRate = input.quantity / input.candleVolume;
+      if (participationRate > input.maxParticipationRate) {
+        impactMultiplier += participationRate / input.maxParticipationRate - 1;
+      }
+    }
+
+    return tradedNotional * baseImpactRate * impactMultiplier;
   }
 
   private normalizeWeights(tokens: string[], providedWeights?: number[]) {
