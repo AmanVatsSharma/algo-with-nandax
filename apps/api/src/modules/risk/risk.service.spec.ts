@@ -16,6 +16,9 @@ describe('RiskService', () => {
   };
 
   let service: RiskService;
+  let tradeRepository: {
+    find: jest.Mock;
+  };
 
   beforeEach(() => {
     riskProfileRepository = {
@@ -31,7 +34,15 @@ describe('RiskService', () => {
       find: jest.fn(async () => []),
     };
 
-    service = new RiskService(riskProfileRepository as any, riskAlertRepository as any);
+    tradeRepository = {
+      find: jest.fn(async () => []),
+    };
+
+    service = new RiskService(
+      riskProfileRepository as any,
+      riskAlertRepository as any,
+      tradeRepository as any,
+    );
   });
 
   it('creates default profile when missing', async () => {
@@ -77,5 +88,44 @@ describe('RiskService', () => {
         alertType: RiskAlertType.KILL_SWITCH_BLOCK,
       }),
     );
+  });
+
+  it('calculates risk analytics with value-at-risk output', async () => {
+    tradeRepository.find
+      .mockResolvedValueOnce([
+        {
+          netPnL: 150,
+          createdAt: new Date('2026-02-10T10:00:00.000Z'),
+          exitTime: new Date('2026-02-10T11:00:00.000Z'),
+        },
+        {
+          netPnL: -50,
+          createdAt: new Date('2026-02-11T10:00:00.000Z'),
+          exitTime: new Date('2026-02-11T11:00:00.000Z'),
+        },
+        {
+          netPnL: -120,
+          createdAt: new Date('2026-02-12T10:00:00.000Z'),
+          exitTime: new Date('2026-02-12T11:00:00.000Z'),
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          quantity: 10,
+          entryPrice: 500,
+          executedEntryPrice: 505,
+        },
+      ]);
+
+    const result = await service.getRiskAnalytics('user-id', {
+      days: 30,
+      confidenceLevel: 95,
+    });
+
+    expect(result.tradeStats.closedTrades).toBe(3);
+    expect(result.tradeStats.grossOpenExposure).toBe(5050);
+    expect(result.riskMetrics.valueAtRisk).toBeGreaterThan(0);
+    expect(result.riskMetrics.expectedShortfall).toBeGreaterThan(0);
+    expect(Array.isArray(result.dailyPnL)).toBe(true);
   });
 });

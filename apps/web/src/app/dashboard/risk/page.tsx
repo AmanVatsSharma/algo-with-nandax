@@ -11,6 +11,11 @@ export default function RiskPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [analytics, setAnalytics] = useState<any>(null);
+  const [analyticsFilters, setAnalyticsFilters] = useState({
+    days: '30',
+    confidenceLevel: '95',
+  });
   const [profile, setProfile] = useState({
     maxPositionValuePerTrade: '0',
     maxDailyLoss: '0',
@@ -24,9 +29,13 @@ export default function RiskPage() {
     setLoading(true);
     setErrorMessage('');
     try {
-      const [profileRes, alertsRes] = await Promise.all([
+      const [profileRes, alertsRes, analyticsRes] = await Promise.all([
         riskApi.getProfile(),
         riskApi.getAlerts(25),
+        riskApi.getAnalytics({
+          days: Number(analyticsFilters.days),
+          confidenceLevel: Number(analyticsFilters.confidenceLevel),
+        }),
       ]);
 
       const profileData = profileRes.data;
@@ -39,6 +48,7 @@ export default function RiskPage() {
         killSwitchReason: profileData.killSwitchReason ?? '',
       });
       setAlerts(alertsRes.data ?? []);
+      setAnalytics(analyticsRes.data ?? null);
     } catch (error: any) {
       console.error('risk-page-load-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to load risk controls');
@@ -49,7 +59,7 @@ export default function RiskPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [analyticsFilters.days, analyticsFilters.confidenceLevel]);
 
   const saveProfile = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -206,6 +216,59 @@ export default function RiskPage() {
             )}
           </div>
         </div>
+
+        <div className="mt-6 rounded-xl border border-amber-500/20 bg-slate-900/60 p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <h2 className="text-xl font-semibold">Risk Analytics Snapshot</h2>
+            <div className="flex items-center gap-3">
+              <FieldInline label="Days">
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={analyticsFilters.days}
+                  onChange={(event) =>
+                    setAnalyticsFilters((prev) => ({ ...prev, days: event.target.value }))
+                  }
+                  className="w-24 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+                />
+              </FieldInline>
+              <FieldInline label="Confidence %">
+                <input
+                  type="number"
+                  min={80}
+                  max={99.9}
+                  step="0.1"
+                  value={analyticsFilters.confidenceLevel}
+                  onChange={(event) =>
+                    setAnalyticsFilters((prev) => ({
+                      ...prev,
+                      confidenceLevel: event.target.value,
+                    }))
+                  }
+                  className="w-28 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+                />
+              </FieldInline>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-slate-400">Loading analytics...</p>
+          ) : analytics ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <MetricCard label="Value at Risk" value={Number(analytics.riskMetrics?.valueAtRisk ?? 0).toFixed(2)} />
+                <MetricCard label="Expected shortfall" value={Number(analytics.riskMetrics?.expectedShortfall ?? 0).toFixed(2)} />
+                <MetricCard label="Max drawdown" value={Number(analytics.riskMetrics?.maxDrawdown ?? 0).toFixed(2)} />
+              </div>
+              <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                {JSON.stringify(analytics, null, 2)}
+              </pre>
+            </div>
+          ) : (
+            <p className="text-slate-400">No analytics available yet.</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -217,5 +280,23 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       <p className="mb-2 text-sm text-slate-300">{label}</p>
       {children}
     </label>
+  );
+}
+
+function FieldInline({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-slate-300">
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-800 p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-lg font-semibold mt-1">{value}</p>
+    </div>
   );
 }

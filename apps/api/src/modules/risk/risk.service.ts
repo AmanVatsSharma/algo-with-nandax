@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, Repository } from 'typeorm';
 import { RiskProfile } from './entities/risk-profile.entity';
 import { RiskAlert, RiskAlertType } from './entities/risk-alert.entity';
 import { UpdateRiskProfileDto } from './dto/update-risk-profile.dto';
 import { SetKillSwitchDto } from './dto/set-kill-switch.dto';
+import { Trade, TradeStatus } from '../trading/entities/trade.entity';
+import { GetRiskAnalyticsDto } from './dto/get-risk-analytics.dto';
 
 interface TradeRiskContext {
   connectionId: string;
@@ -27,6 +29,8 @@ export class RiskService {
     private readonly riskProfileRepository: Repository<RiskProfile>,
     @InjectRepository(RiskAlert)
     private readonly riskAlertRepository: Repository<RiskAlert>,
+    @InjectRepository(Trade)
+    private readonly tradeRepository: Repository<Trade>,
   ) {}
 
   async getOrCreateProfile(userId: string): Promise<RiskProfile> {
@@ -85,6 +89,116 @@ export class RiskService {
       order: { createdAt: 'DESC' },
       take: Math.min(Math.max(limit, 1), 200),
     });
+  }
+
+  async getRiskAnalytics(userId: string, dto: GetRiskAnalyticsDto) {
+    const lookbackDays = Math.min(Math.max(dto.days ?? 30, 1), 365);
+    const confidenceLevel = Math.min(Math.max(dto.confidenceLevel ?? 95, 80), 99.9);
+
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(endDate.getDate() - lookbackDays);
+
+    const closedTrades = await this.tradeRepository.find({
+      where: {
+        userId,
+        status: TradeStatus.CLOSED,
+        createdAt: Between(startDate, endDate),
+      },
+      order: { createdAt: 'ASC' },
+    });
+
+    const openTrades = await this.tradeRepository.find({
+      where: {
+        userId,
+        status: TradeStatus.OPEN,
+      },
+    });
+
+    const tradePnLs = closedTrades.map((trade) => Number(trade.netPnL ?? 0));
+    const totalNetPnL = tradePnLs.reduce((sum, value) => sum + value, 0);
+    const averageTradePnL = closedTrades.length ? totalNetPnL / closedTrades.length : 0;
+
+    const variance = closedTrades.length
+      ? tradePnLs.reduce((sum, value) => sum + (value - averageTradePnL) ** 2, 0) /
+        closedTrades.length
+      : 0;
+    const pnlStdDev = Math.sqrt(variance);
+
+    const sortedPnL = [...tradePnLs].sort((a, b) => a - b);
+    const tailProbability = 1 - confidenceLevel / 100;
+    const percentileIndex = sortedPnL.length
+      ? Math.max(Math.ceil(sortedPnL.length * tailProbability) - 1, 0)
+      : 0;
+    const valueAtRisk = sortedPnL.length
+      ? Math.max(0, -Math.min(sortedPnL[percentileIndex], 0))
+      : 0;
+    const tailTrades = sortedPnL.length ? sortedPnL.slice(0, percentileIndex + 1) : [];
+    const expectedShortfall = tailTrades.length
+      ? Math.max(
+          0,
+          -Math.min(
+            tailTrades.reduce((sum, value) => sum + value, 0) / tailTrades.length,
+            0,
+          ),
+        )
+      : 0;
+
+    const dailyPnLMap = new Map<string, number>();
+    for (const trade of closedTrades) {
+      const tradeDate = (trade.exitTime ?? trade.createdAt).toISOString().slice(0, 10);
+      const runningDayPnL = dailyPnLMap.get(tradeDate) ?? 0;
+      dailyPnLMap.set(tradeDate, runningDayPnL + Number(trade.netPnL ?? 0));
+    }
+
+    const dailyPnL = Array.from(dailyPnLMap.entries())
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([date, pnl]) => ({ date, pnl }));
+
+    let cumulativePnL = 0;
+    let peakPnL = 0;
+    let maxDrawdown = 0;
+    const equityCurve = dailyPnL.map((point) => {
+      cumulativePnL += point.pnl;
+      peakPnL = Math.max(peakPnL, cumulativePnL);
+      maxDrawdown = Math.max(maxDrawdown, peakPnL - cumulativePnL);
+      return {
+        date: point.date,
+        equity: cumulativePnL,
+      };
+    });
+
+    const grossOpenExposure = openTrades.reduce((sum, trade) => {
+      const price = Number(trade.executedEntryPrice ?? trade.entryPrice ?? 0);
+      const quantity = Number(trade.quantity ?? 0);
+      return sum + Math.abs(price * quantity);
+    }, 0);
+
+    return {
+      period: {
+        lookbackDays,
+        confidenceLevel,
+        from: startDate.toISOString(),
+        to: endDate.toISOString(),
+      },
+      tradeStats: {
+        closedTrades: closedTrades.length,
+        openTrades: openTrades.length,
+        totalNetPnL,
+        averageTradePnL,
+        pnlStdDev,
+        maxProfitTrade: closedTrades.length ? Math.max(...tradePnLs) : 0,
+        maxLossTrade: closedTrades.length ? Math.min(...tradePnLs) : 0,
+        grossOpenExposure,
+      },
+      riskMetrics: {
+        valueAtRisk,
+        expectedShortfall,
+        maxDrawdown,
+      },
+      dailyPnL,
+      equityCurve,
+    };
   }
 
   async evaluateTradeRisk(

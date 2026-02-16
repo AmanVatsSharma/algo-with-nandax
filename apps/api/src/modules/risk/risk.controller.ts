@@ -4,6 +4,7 @@ import { RiskService } from './risk.service';
 import { UpdateRiskProfileDto } from './dto/update-risk-profile.dto';
 import { SetKillSwitchDto } from './dto/set-kill-switch.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
+import { GetRiskAnalyticsDto } from './dto/get-risk-analytics.dto';
 
 @Controller('risk')
 @UseGuards(JwtAuthGuard)
@@ -37,5 +38,10 @@ export class RiskController {
   async getAlerts(@Request() req, @Query('limit') limit?: string) {
     const parsedLimit = limit ? Number(limit) : 50;
     return this.riskService.getAlerts(req.user.userId, parsedLimit);
+  }
+
+  @Get('analytics')
+  async getAnalytics(@Request() req, @Query() query: GetRiskAnalyticsDto) {
+    return this.riskService.getRiskAnalytics(req.user.userId, query);
   }
 }

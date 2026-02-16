@@ -153,4 +153,15 @@ export const riskApi = {
   enableKillSwitch: (reason?: string) => api.post('/risk/kill-switch/enable', { reason }),
   disableKillSwitch: () => api.post('/risk/kill-switch/disable'),
   getAlerts: (limit: number = 50) => api.get(`/risk/alerts?limit=${limit}`),
+  getAnalytics: (params?: { days?: number; confidenceLevel?: number }) => {
+    const search = new URLSearchParams();
+    if (params?.days) {
+      search.set('days', String(params.days));
+    }
+    if (params?.confidenceLevel) {
+      search.set('confidenceLevel', String(params.confidenceLevel));
+    }
+    const queryString = search.toString();
+    return api.get(`/risk/analytics${queryString ? `?${queryString}` : ''}`);
+  },
 };
