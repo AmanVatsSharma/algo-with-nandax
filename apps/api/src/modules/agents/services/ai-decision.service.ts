@@ -3,10 +3,12 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { firstValueFrom } from 'rxjs';
 import { getErrorMessage } from '@/common/utils/error.utils';
+import { AIGovernancePolicyService } from './ai-governance-policy.service';
 
 type TradeAction = 'buy' | 'sell' | 'hold';
 
 interface AIDecisionContext {
+  userId?: string;
   agentId: string;
   marketData: { quotes: Record<string, any> };
   strategyConfig?: Record<string, unknown>;
@@ -34,6 +36,7 @@ export class AIDecisionService {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly aiGovernancePolicyService: AIGovernancePolicyService,
   ) {
     // Register built-in deterministic providers. These providers are intentionally
     // lightweight so the system can run without external LLM dependencies.
@@ -67,12 +70,28 @@ export class AIDecisionService {
     }
 
     if (this.shouldUseLiveProvider(context)) {
-      const liveDecision = await this.tryLiveProviderDecision(providerKey, context);
-      if (liveDecision) {
-        this.logger.log(
-          `ai-decision: agent=${context.agentId} provider=${providerKey} mode=live action=${liveDecision.action} confidence=${liveDecision.confidence.toFixed(3)}`,
+      if (!context.userId) {
+        this.logger.warn(
+          `Live AI mode requested for agent=${context.agentId} without userId context; using deterministic fallback`,
         );
-        return liveDecision;
+      } else {
+        const livePolicy = await this.aiGovernancePolicyService.evaluateLiveInferencePolicy({
+          userId: context.userId,
+          providerKey,
+        });
+        if (!livePolicy.allowed) {
+          this.logger.warn(
+            `ai-live-policy-block: user=${context.userId} agent=${context.agentId} provider=${providerKey} reason=${livePolicy.reason}`,
+          );
+        } else {
+          const liveDecision = await this.tryLiveProviderDecision(providerKey, context);
+          if (liveDecision) {
+            this.logger.log(
+              `ai-decision: agent=${context.agentId} provider=${providerKey} mode=live action=${liveDecision.action} confidence=${liveDecision.confidence.toFixed(3)}`,
+            );
+            return liveDecision;
+          }
+        }
       }
     }
 

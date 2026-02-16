@@ -46,6 +46,11 @@ flowchart TD
   - `aiLiveMode` is enabled in strategy/model config
   - provider API key is configured in environment.
 - Live mode has retry + timeout and deterministic fallback on failures.
+- Live mode is additionally governed by budget policies:
+  - `AI_DAILY_COST_BUDGET_USD`
+  - `AI_DAILY_TOKEN_BUDGET`
+  - `AI_PROVIDER_DAILY_COST_BUDGET_USD`
+  - policy violations block live mode and force deterministic fallback.
 - Every strategy cycle persists AI decision logs (`ai_decision_logs`) with provider/mode/model/action/confidence/tokens/cost metadata.
 - API endpoint for audit-style review:
   - `GET /api/v1/agents/:id/decision-logs?limit=100`
@@ -56,7 +61,7 @@ flowchart TD
 
 ## Remaining limitation
 
-- Institutional-grade model governance/guardrails and centralized provider cost ledger are still pending.
+- Full policy governance is still evolving (current controls are daily budget thresholds, not organization-wide policy workflows/approvals).
 
 ## AI runtime configuration
 
@@ -65,3 +70,6 @@ flowchart TD
 - `OPENAI_ESTIMATED_COST_USD_PER_1K_TOKENS` (optional, default `0.002`)
 - `ANTHROPIC_API_KEY` (optional)
 - `ANTHROPIC_ESTIMATED_COST_USD_PER_1K_TOKENS` (optional, default `0.0025`)
+- `AI_DAILY_COST_BUDGET_USD` (optional, default `0` disabled)
+- `AI_DAILY_TOKEN_BUDGET` (optional, default `0` disabled)
+- `AI_PROVIDER_DAILY_COST_BUDGET_USD` (optional, default `0` disabled)

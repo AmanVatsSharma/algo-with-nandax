@@ -111,6 +111,7 @@ export class AgentProcessor {
           marketData,
           strategyConfig,
           {
+            userId: agent.userId,
             aiModelName: agent.aiModelName,
             aiModelConfig: agent.aiModelConfig,
           },

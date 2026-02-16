@@ -135,6 +135,7 @@ export class AgentExecutor {
     marketData: any,
     strategyConfig: any,
     agentContext?: {
+      userId?: string;
       aiModelName?: string;
       aiModelConfig?: Record<string, unknown>;
     },
@@ -142,6 +143,7 @@ export class AgentExecutor {
     this.logger.log(`Making AI decision for agent ${agentId}`);
 
     const decision = await this.aiDecisionService.decide({
+      userId: agentContext?.userId,
       agentId,
       marketData,
       strategyConfig,

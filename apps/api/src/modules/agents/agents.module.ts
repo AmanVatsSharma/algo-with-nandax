@@ -7,6 +7,7 @@ import { AgentsController } from './agents.controller';
 import { AgentExecutor } from './services/agent-executor.service';
 import { AIDecisionService } from './services/ai-decision.service';
 import { AIDecisionLogService } from './services/ai-decision-log.service';
+import { AIGovernancePolicyService } from './services/ai-governance-policy.service';
 import { AICostLedgerService } from './services/ai-cost-ledger.service';
 import { AICostLedgerScheduler } from './services/ai-cost-ledger.scheduler';
 import { AgentProcessor } from './processors/agent.processor';
@@ -37,6 +38,7 @@ import { RiskModule } from '../risk/risk.module';
     AgentProcessor,
     AIDecisionService,
     AIDecisionLogService,
+    AIGovernancePolicyService,
     AICostLedgerService,
     AICostLedgerScheduler,
   ],

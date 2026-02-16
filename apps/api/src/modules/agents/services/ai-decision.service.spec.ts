@@ -9,6 +9,9 @@ describe('AIDecisionService', () => {
   const configServiceMock = {
     get: jest.fn(),
   };
+  const aiGovernancePolicyServiceMock = {
+    evaluateLiveInferencePolicy: jest.fn(async () => ({ allowed: true } as any)),
+  };
 
   let service: AIDecisionService;
 
@@ -20,7 +23,14 @@ describe('AIDecisionService', () => {
       }
       return fallback;
     });
-    service = new AIDecisionService(httpServiceMock as any, configServiceMock as any);
+    aiGovernancePolicyServiceMock.evaluateLiveInferencePolicy.mockResolvedValue({
+      allowed: true,
+    });
+    service = new AIDecisionService(
+      httpServiceMock as any,
+      configServiceMock as any,
+      aiGovernancePolicyServiceMock as any,
+    );
   });
 
   it('uses openai provider when strategy requests it', async () => {
@@ -79,9 +89,14 @@ describe('AIDecisionService', () => {
       }
       return fallback;
     });
-    service = new AIDecisionService(httpServiceMock as any, configServiceMock as any);
+    service = new AIDecisionService(
+      httpServiceMock as any,
+      configServiceMock as any,
+      aiGovernancePolicyServiceMock as any,
+    );
 
     const result = await service.decide({
+      userId: 'user-1',
       agentId: 'agent-4',
       strategyConfig: { aiProvider: 'openai', aiLiveMode: true },
       marketData: {
@@ -125,8 +140,13 @@ describe('AIDecisionService', () => {
       }),
     );
 
-    service = new AIDecisionService(httpServiceMock as any, configServiceMock as any);
+    service = new AIDecisionService(
+      httpServiceMock as any,
+      configServiceMock as any,
+      aiGovernancePolicyServiceMock as any,
+    );
     const result = await service.decide({
+      userId: 'user-1',
       agentId: 'agent-5',
       strategyConfig: { aiProvider: 'openai', aiLiveMode: true },
       marketData: {
@@ -142,5 +162,43 @@ describe('AIDecisionService', () => {
     expect(result.metadata.mode).toBe('live');
     expect(result.action).toBe('buy');
     expect(httpServiceMock.post).toHaveBeenCalledTimes(1);
+  });
+
+  it('blocks live mode when governance policy denies budget', async () => {
+    configServiceMock.get.mockImplementation((key: string, fallback?: string) => {
+      if (key === 'AI_PROVIDER_TIMEOUT_MS') {
+        return '4000';
+      }
+      if (key === 'OPENAI_API_KEY') {
+        return 'test-openai-key';
+      }
+      return fallback;
+    });
+    aiGovernancePolicyServiceMock.evaluateLiveInferencePolicy.mockResolvedValue({
+      allowed: false,
+      reason: 'daily-cost-budget-exceeded',
+    });
+    service = new AIDecisionService(
+      httpServiceMock as any,
+      configServiceMock as any,
+      aiGovernancePolicyServiceMock as any,
+    );
+
+    const result = await service.decide({
+      userId: 'user-1',
+      agentId: 'agent-6',
+      strategyConfig: { aiProvider: 'openai', aiLiveMode: true },
+      marketData: {
+        quotes: {
+          'NSE:SBIN': {
+            last_price: 110,
+            ohlc: { open: 100, low: 99, high: 111 },
+          },
+        },
+      },
+    });
+
+    expect(result.metadata.mode).toBe('deterministic');
+    expect(httpServiceMock.post).not.toHaveBeenCalled();
   });
 });
