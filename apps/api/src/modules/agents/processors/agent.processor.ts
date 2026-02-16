@@ -63,6 +63,22 @@ export class AgentProcessor {
         return;
       }
 
+      const agentTodayPnL = todayTradesForAgent.reduce(
+        (sum, trade) => sum + Number(trade.netPnL ?? 0),
+        0,
+      );
+      if (this.shouldBlockTradingByDailyPnL(strategyConfig ?? {}, agentTodayPnL)) {
+        this.logger.warn(
+          `Agent ${agentId} blocked by daily PnL guardrails. todayPnL=${agentTodayPnL}`,
+        );
+        return {
+          success: true,
+          executed: false,
+          reason: 'daily-pnl-guardrail-triggered',
+          todayPnL: agentTodayPnL,
+        };
+      }
+
       // Fetch live market data from broker connection.
       const marketData = await this.getMarketData(agent.userId, agent.connectionId, strategy.instruments);
 
@@ -230,5 +246,32 @@ export class AgentProcessor {
     }
 
     return ltp;
+  }
+
+  private shouldBlockTradingByDailyPnL(
+    strategyConfig: Record<string, unknown>,
+    todayPnL: number,
+  ): boolean {
+    const maxDailyLoss = this.toPositiveNumber(strategyConfig.maxDailyLoss);
+    const maxDailyProfit = this.toPositiveNumber(strategyConfig.maxDailyProfit);
+
+    if (maxDailyLoss !== null && todayPnL <= -maxDailyLoss) {
+      return true;
+    }
+
+    if (maxDailyProfit !== null && todayPnL >= maxDailyProfit) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private toPositiveNumber(value: unknown): number | null {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue) || numericValue <= 0) {
+      return null;
+    }
+
+    return numericValue;
   }
 }

@@ -21,6 +21,9 @@ flowchart TD
 ## Guardrails added
 
 - Enforces `maxPositions` and `maxTradesPerDay`.
+- Optional strategy config guardrails:
+  - `maxDailyLoss`
+  - `maxDailyProfit`
 - Uses live broker quotes for decision inputs.
 - Blocks live placement if:
   - agent is `paperTrading=true`,
