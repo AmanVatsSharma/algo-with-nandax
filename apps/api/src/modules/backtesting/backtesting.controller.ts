@@ -5,6 +5,7 @@ import { RunBacktestDto } from './dto/run-backtest.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
 import { RunPortfolioBacktestDto } from './dto/run-portfolio-backtest.dto';
 import { OptimizeBacktestDto } from './dto/optimize-backtest.dto';
+import { OptimizePortfolioBacktestDto } from './dto/optimize-portfolio-backtest.dto';
 
 @Controller('backtesting')
 @UseGuards(JwtAuthGuard)
@@ -27,5 +28,14 @@ export class BacktestingController {
   @Audit({ action: 'backtesting.optimize', resourceType: 'backtest' })
   async optimizeBacktest(@Request() req, @Body() dto: OptimizeBacktestDto) {
     return this.backtestingService.optimizeBacktest(req.user.userId, dto);
+  }
+
+  @Post('optimize-portfolio')
+  @Audit({ action: 'backtesting.optimize_portfolio', resourceType: 'backtest' })
+  async optimizePortfolioBacktest(
+    @Request() req,
+    @Body() dto: OptimizePortfolioBacktestDto,
+  ) {
+    return this.backtestingService.optimizePortfolioBacktest(req.user.userId, dto);
   }
 }

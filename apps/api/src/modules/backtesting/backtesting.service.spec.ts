@@ -141,4 +141,29 @@ describe('BacktestingService', () => {
     expect(result.topStrategies.length).toBe(2);
     expect(result.bestStrategy).not.toBeNull();
   });
+
+  it('optimizes portfolio weights and returns ranked portfolio candidates', async () => {
+    brokerServiceMock.getKiteHistoricalData.mockResolvedValue({
+      candles: [
+        ['2026-01-01T09:15:00+0530', 100, 101, 99, 100, 1000],
+        ['2026-01-01T09:20:00+0530', 100, 103, 99, 102, 1200],
+        ['2026-01-01T09:25:00+0530', 102, 104, 100, 101, 900],
+        ['2026-01-01T09:30:00+0530', 101, 103, 98, 99, 1000],
+      ],
+    });
+
+    const result = await service.optimizePortfolioBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentTokens: ['111', '222', '333'],
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      topN: 3,
+    });
+
+    expect(result.evaluatedPortfolios).toBeGreaterThanOrEqual(4);
+    expect(Array.isArray(result.topPortfolios)).toBe(true);
+    expect(result.topPortfolios.length).toBe(3);
+    expect(result.bestPortfolio).not.toBeNull();
+  });
 });

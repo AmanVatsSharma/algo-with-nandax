@@ -3,6 +3,7 @@ import { BrokerService } from '../broker/broker.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
 import { RunPortfolioBacktestDto } from './dto/run-portfolio-backtest.dto';
 import { OptimizeBacktestDto } from './dto/optimize-backtest.dto';
+import { OptimizePortfolioBacktestDto } from './dto/optimize-portfolio-backtest.dto';
 
 interface Candle {
   timestamp: string;
@@ -251,6 +252,67 @@ export class BacktestingService {
         exitCandidates,
         impactBps: dto.impactBps ?? 0,
         maxParticipationRate: dto.maxParticipationRate ?? 0,
+      },
+    };
+  }
+
+  async optimizePortfolioBacktest(userId: string, dto: OptimizePortfolioBacktestDto) {
+    const uniqueTokens = Array.from(
+      new Set((dto.instrumentTokens ?? []).map((token) => token.trim()).filter(Boolean)),
+    );
+    if (uniqueTokens.length < 2) {
+      throw new BadRequestException('At least two unique instrument tokens are required');
+    }
+
+    const topN = Math.min(Math.max(dto.topN ?? 5, 1), 10);
+    const candidateWeights = this.generatePortfolioWeightCandidates(uniqueTokens.length);
+
+    const evaluations: Array<Record<string, unknown>> = [];
+    for (const weights of candidateWeights) {
+      const runResult = await this.runPortfolioBacktest(userId, {
+        connectionId: dto.connectionId,
+        instrumentTokens: uniqueTokens,
+        weights,
+        interval: dto.interval,
+        fromDate: dto.fromDate,
+        toDate: dto.toDate,
+        quantity: dto.quantity,
+        entryThresholdPercent: 0.4,
+        exitThresholdPercent: 0.2,
+        feePerTrade: dto.feePerTrade,
+        slippageBps: dto.slippageBps,
+        impactBps: dto.impactBps,
+        maxParticipationRate: dto.maxParticipationRate,
+        stopLossPercent: dto.stopLossPercent,
+        takeProfitPercent: dto.takeProfitPercent,
+        walkForwardWindows: dto.walkForwardWindows,
+        initialCapital: dto.initialCapital,
+      });
+
+      const score =
+        Number(runResult.summary.totalPnL ?? 0) -
+        Number(runResult.summary.maxDrawdown ?? 0) * 0.2;
+      evaluations.push({
+        weights,
+        score,
+        summary: runResult.summary,
+      });
+    }
+
+    const ranked = evaluations.sort((left, right) => Number(right.score) - Number(left.score));
+    const topPortfolios = ranked.slice(0, topN);
+
+    return {
+      evaluatedPortfolios: evaluations.length,
+      topPortfolios,
+      bestPortfolio: topPortfolios[0] ?? null,
+      configUsed: {
+        instrumentTokens: uniqueTokens,
+        interval: dto.interval,
+        fromDate: dto.fromDate,
+        toDate: dto.toDate,
+        topN,
+        candidatePortfolioCount: candidateWeights.length,
       },
     };
   }
@@ -581,8 +643,8 @@ export class BacktestingService {
     }
 
     const cleanWeights = providedWeights.map((weight) => Number(weight));
-    if (cleanWeights.some((weight) => !Number.isFinite(weight) || weight <= 0)) {
-      throw new BadRequestException('All weights must be positive numbers');
+    if (cleanWeights.some((weight) => !Number.isFinite(weight) || weight < 0)) {
+      throw new BadRequestException('All weights must be non-negative numbers');
     }
 
     const totalWeight = cleanWeights.reduce((sum, weight) => sum + weight, 0);
@@ -643,5 +705,43 @@ export class BacktestingService {
     }
 
     return Array.from(new Set(normalized)).sort((left, right) => left - right);
+  }
+
+  private generatePortfolioWeightCandidates(instrumentCount: number) {
+    const candidates: number[][] = [];
+    if (instrumentCount <= 0) {
+      return candidates;
+    }
+
+    // Equal weight baseline.
+    candidates.push(Array.from({ length: instrumentCount }, () => 1 / instrumentCount));
+
+    // Concentrated portfolios (single-instrument focus).
+    for (let index = 0; index < instrumentCount; index++) {
+      const weights = Array.from({ length: instrumentCount }, (_, itemIndex) =>
+        itemIndex === index ? 1 : 0,
+      );
+      candidates.push(weights);
+    }
+
+    // Simple pair-balanced candidates to diversify baseline exploration.
+    if (instrumentCount >= 2) {
+      for (let leftIndex = 0; leftIndex < instrumentCount; leftIndex++) {
+        for (let rightIndex = leftIndex + 1; rightIndex < instrumentCount; rightIndex++) {
+          const weights = Array.from({ length: instrumentCount }, () => 0);
+          weights[leftIndex] = 0.5;
+          weights[rightIndex] = 0.5;
+          candidates.push(weights);
+        }
+      }
+    }
+
+    // Deduplicate candidates.
+    const unique = new Map<string, number[]>();
+    for (const candidate of candidates) {
+      const normalized = candidate.map((value) => Number(value.toFixed(6)));
+      unique.set(normalized.join('|'), normalized);
+    }
+    return Array.from(unique.values());
   }
 }

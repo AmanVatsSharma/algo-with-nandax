@@ -198,6 +198,50 @@ export default function BacktestingPage() {
     }
   };
 
+  const runPortfolioOptimization = async () => {
+    setRunning(true);
+    setResult(null);
+    setErrorMessage('');
+
+    try {
+      const instrumentTokens = form.portfolioTokensCsv
+        .split(',')
+        .map((token) => token.trim())
+        .filter(Boolean);
+      if (instrumentTokens.length < 2) {
+        setErrorMessage('Provide at least two instrument tokens for portfolio optimization');
+        return;
+      }
+
+      const payload = {
+        connectionId: form.connectionId,
+        instrumentTokens,
+        interval: form.interval,
+        fromDate: form.fromDate,
+        toDate: form.toDate,
+        quantity: Number(form.quantity),
+        feePerTrade: Number(form.feePerTrade),
+        slippageBps: Number(form.slippageBps),
+        impactBps: Number(form.impactBps),
+        maxParticipationRate: Number(form.maxParticipationRate),
+        stopLossPercent: Number(form.stopLossPercent),
+        takeProfitPercent: Number(form.takeProfitPercent),
+        walkForwardWindows: Number(form.walkForwardWindows),
+        initialCapital: Number(form.initialCapital),
+        topN: Number(form.topN),
+      };
+
+      console.log('run-portfolio-optimization-payload', payload);
+      const response = await backtestingApi.optimizePortfolio(payload);
+      setResult(response.data);
+    } catch (error: any) {
+      console.error('run-portfolio-optimization-error', error);
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to optimize portfolio');
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-white">
       <div className="max-w-5xl mx-auto px-6 py-10">
@@ -457,6 +501,14 @@ export default function BacktestingPage() {
           >
             {running ? 'Optimizing...' : 'Optimize thresholds'}
           </button>
+          <button
+            type="button"
+            disabled={running}
+            onClick={runPortfolioOptimization}
+            className="w-full rounded-lg bg-fuchsia-600 hover:bg-fuchsia-700 transition px-4 py-3 font-semibold disabled:opacity-50"
+          >
+            {running ? 'Optimizing portfolio...' : 'Optimize portfolio weights'}
+          </button>
         </form>
 
         {result && (
@@ -483,6 +535,12 @@ export default function BacktestingPage() {
               <h2 className="text-xl font-semibold mb-4">Optimization top strategies</h2>
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
                 {JSON.stringify(result.topStrategies ?? [], null, 2)}
+              </pre>
+            </div>
+            <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">
+              <h2 className="text-xl font-semibold mb-4">Portfolio optimization candidates</h2>
+              <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                {JSON.stringify(result.topPortfolios ?? [], null, 2)}
               </pre>
             </div>
             <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">

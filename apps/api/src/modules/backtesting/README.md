@@ -7,6 +7,7 @@ Backtesting module provides a first production-safe historical simulation pipeli
 - `POST /api/v1/backtesting/run`
 - `POST /api/v1/backtesting/run-portfolio`
 - `POST /api/v1/backtesting/optimize`
+- `POST /api/v1/backtesting/optimize-portfolio`
 
 ## Inputs
 
@@ -38,6 +39,7 @@ Backtesting module provides a first production-safe historical simulation pipeli
 - Computes net PnL, ending equity, max drawdown, and per-window summaries.
 - Portfolio endpoint aggregates multi-instrument PnL and portfolio equity curve.
 - Optimize endpoint runs threshold grid-search and ranks best strategy configurations.
+- Portfolio optimize endpoint ranks candidate portfolio weight allocations.
 
 ## Flow
 
@@ -74,6 +76,16 @@ flowchart TD
   C --> D[Run deterministic simulation for each combination]
   D --> E[Score by pnl minus drawdown penalty]
   E --> F[Return ranked top strategies]
+```
+
+## Portfolio optimization flow
+
+```mermaid
+flowchart TD
+  A[Run optimize-portfolio request] --> B[Build candidate weight sets]
+  B --> C[Run portfolio simulation per candidate]
+  C --> D[Score with pnl-drawdown objective]
+  D --> E[Return top portfolio candidates]
 ```
 
 ## Notes

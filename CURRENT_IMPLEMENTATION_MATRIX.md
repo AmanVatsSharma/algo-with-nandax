@@ -79,13 +79,14 @@ This document reflects **actual code state** and intentionally separates shipped
 | API backtesting engine (v1.5 deterministic+) | ✅ | `POST /backtesting/run` supports slippage, stop-loss/take-profit, walk-forward windows |
 | Portfolio backtesting baseline | ✅ | `POST /backtesting/run-portfolio` aggregates multi-instrument simulations |
 | Backtesting optimization baseline | ✅ | `POST /backtesting/optimize` ranks threshold combinations via grid-search |
+| Portfolio optimization baseline | ✅ | `POST /backtesting/optimize-portfolio` ranks candidate weight allocations |
 
 ## Advanced Platform
 
 | Capability | Status | Notes |
 |---|---|---|
 | Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted AI decision logs; centralized governance policies pending |
-| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + market-impact + portfolio + threshold optimization baseline shipped; institutional microstructure + portfolio optimizer pending |
+| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + market-impact + portfolio + threshold/weight optimization baseline shipped; institutional microstructure optimizer pending |
 | Multi-tenant white-label | 📌 | Planned |
 | SSO/SAML enterprise auth | 📌 | Planned |
 
