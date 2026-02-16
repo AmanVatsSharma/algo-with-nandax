@@ -86,6 +86,8 @@ export const agentsApi = {
   getGovernancePolicy: () => api.get('/agents/governance/policy'),
   getGovernanceEvents: (limit: number = 100) =>
     api.get(`/agents/governance/events?limit=${limit}`),
+  getGovernancePolicyRequests: (limit: number = 100) =>
+    api.get(`/agents/governance/policy/change-requests?limit=${limit}`),
   updateGovernancePolicy: (data: {
     liveInferenceEnabled?: boolean;
     dailyCostBudgetUsd?: number;
@@ -93,6 +95,18 @@ export const agentsApi = {
     providerDailyCostBudgetUsd?: number;
     policyNote?: string;
   }) => api.patch('/agents/governance/policy', data),
+  submitGovernancePolicyRequest: (data: {
+    liveInferenceEnabled?: boolean;
+    dailyCostBudgetUsd?: number;
+    dailyTokenBudget?: number;
+    providerDailyCostBudgetUsd?: number;
+    policyNote?: string;
+    requestNote?: string;
+  }) => api.post('/agents/governance/policy/change-requests', data),
+  approveGovernancePolicyRequest: (id: string, data?: { reviewNote?: string }) =>
+    api.post(`/agents/governance/policy/change-requests/${id}/approve`, data ?? {}),
+  rejectGovernancePolicyRequest: (id: string, data?: { reviewNote?: string }) =>
+    api.post(`/agents/governance/policy/change-requests/${id}/reject`, data ?? {}),
   create: (data: any) => api.post('/agents', data),
   update: (id: string, data: any) => api.patch(`/agents/${id}`, data),
   delete: (id: string) => api.delete(`/agents/${id}`),

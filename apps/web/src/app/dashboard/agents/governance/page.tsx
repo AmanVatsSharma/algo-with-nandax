@@ -9,30 +9,58 @@ export default function AIGovernancePage() {
   const [loading, setLoading] = useState(true);
   const [savingPolicy, setSavingPolicy] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [summary, setSummary] = useState<any>(null);
   const [ledger, setLedger] = useState<any>(null);
   const [policy, setPolicy] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
+  const [policyRequests, setPolicyRequests] = useState<any[]>([]);
+  const [currentUserRole, setCurrentUserRole] = useState<string>('user');
   const [days, setDays] = useState('30');
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (!stored) {
+        return;
+      }
+      const parsed = JSON.parse(stored);
+      setCurrentUserRole(String(parsed?.role ?? 'user').toLowerCase());
+    } catch (error) {
+      console.warn('ai-governance-user-role-parse-warning', error);
+    }
+  }, []);
 
   const fetchSummary = async () => {
     setLoading(true);
     setErrorMessage('');
+    setSuccessMessage('');
     try {
-      const [summaryResponse, ledgerResponse, policyResponse, eventsResponse] = await Promise.all([
+      const [
+        summaryResponse,
+        ledgerResponse,
+        policyResponse,
+        eventsResponse,
+        policyRequestsResponse,
+      ] = await Promise.all([
         agentsApi.getGovernanceSummary(Number(days)),
         agentsApi.getGovernanceLedger(Number(days)),
         agentsApi.getGovernancePolicy(),
         agentsApi.getGovernanceEvents(50),
+        agentsApi.getGovernancePolicyRequests(100),
       ]);
       console.log('ai-governance-summary-fetch-result', {
         days: Number(days),
         totalDecisions: summaryResponse.data?.totals?.totalDecisions ?? 0,
+        policyRequestCount: Array.isArray(policyRequestsResponse.data)
+          ? policyRequestsResponse.data.length
+          : 0,
       });
       setSummary(summaryResponse.data);
       setLedger(ledgerResponse.data);
       setPolicy(policyResponse.data);
       setEvents(eventsResponse.data ?? []);
+      setPolicyRequests(policyRequestsResponse.data ?? []);
     } catch (error: any) {
       console.error('ai-governance-summary-fetch-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to load AI governance summary');
@@ -51,6 +79,7 @@ export default function AIGovernancePage() {
     }
     setSavingPolicy(true);
     setErrorMessage('');
+    setSuccessMessage('');
     try {
       const payload = {
         liveInferenceEnabled: Boolean(policy.profile?.liveInferenceEnabled),
@@ -60,13 +89,36 @@ export default function AIGovernancePage() {
         policyNote: String(policy.profile?.policyNote ?? ''),
       };
       console.log('ai-governance-policy-save-payload', payload);
-      await agentsApi.updateGovernancePolicy(payload);
+      const response = await agentsApi.updateGovernancePolicy(payload);
+      if (response.data?.status === 'pending_approval') {
+        setSuccessMessage('Policy change request submitted for admin approval.');
+      } else {
+        setSuccessMessage('Policy updated successfully.');
+      }
       await fetchSummary();
     } catch (error: any) {
       console.error('ai-governance-policy-save-error', error);
       setErrorMessage(error?.response?.data?.message ?? 'Failed to update governance policy');
     } finally {
       setSavingPolicy(false);
+    }
+  };
+
+  const reviewPolicyRequest = async (requestId: string, action: 'approve' | 'reject') => {
+    setErrorMessage('');
+    setSuccessMessage('');
+    try {
+      if (action === 'approve') {
+        await agentsApi.approveGovernancePolicyRequest(requestId);
+        setSuccessMessage('Policy request approved.');
+      } else {
+        await agentsApi.rejectGovernancePolicyRequest(requestId);
+        setSuccessMessage('Policy request rejected.');
+      }
+      await fetchSummary();
+    } catch (error: any) {
+      console.error('ai-governance-policy-request-review-error', { action, requestId, error });
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to review policy request');
     }
   };
 
@@ -92,6 +144,11 @@ export default function AIGovernancePage() {
         {errorMessage && (
           <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-red-300">
             {errorMessage}
+          </div>
+        )}
+        {successMessage && (
+          <div className="mb-4 rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-emerald-300">
+            {successMessage}
           </div>
         )}
 
@@ -284,6 +341,52 @@ export default function AIGovernancePage() {
                         <p className="text-slate-300 mt-1">
                           provider={event.provider} {event.reason ? `| reason=${event.reason}` : ''}
                         </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
+                <p className="text-sm font-semibold mb-2">Policy approval workflow queue</p>
+                {policyRequests.length === 0 ? (
+                  <p className="text-xs text-slate-400">No policy requests in scope.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {policyRequests.map((request) => (
+                      <div
+                        key={request.id}
+                        className="rounded border border-slate-700 bg-slate-900 px-3 py-2 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-slate-100">
+                            status={request.status}
+                          </span>
+                          <span className="text-slate-400">
+                            requestedBy={request.requestedByUserId}
+                          </span>
+                        </div>
+                        <pre className="mt-2 overflow-auto rounded border border-slate-700 bg-slate-950 p-2 text-[11px]">
+                          {JSON.stringify(request.requestedPolicy ?? {}, null, 2)}
+                        </pre>
+                        {currentUserRole === 'admin' && request.status === 'pending' && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => reviewPolicyRequest(request.id, 'approve')}
+                              className="rounded bg-emerald-700 px-3 py-1 font-semibold hover:bg-emerald-600"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => reviewPolicyRequest(request.id, 'reject')}
+                              className="rounded bg-rose-700 px-3 py-1 font-semibold hover:bg-rose-600"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

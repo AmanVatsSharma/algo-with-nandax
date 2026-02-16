@@ -58,14 +58,26 @@ flowchart TD
   - `GET /api/v1/agents/governance/ledger?days=30`
   - `GET /api/v1/agents/governance/policy`
   - `GET /api/v1/agents/governance/events?limit=50`
+  - `GET /api/v1/agents/governance/policy/change-requests?limit=100`
   - `PATCH /api/v1/agents/governance/policy`
+  - `POST /api/v1/agents/governance/policy/change-requests`
+  - `POST /api/v1/agents/governance/policy/change-requests/:id/approve` (admin)
+  - `POST /api/v1/agents/governance/policy/change-requests/:id/reject` (admin)
 - Hourly ledger rebuild scheduler aggregates daily AI usage/cost:
   - `AI_COST_LEDGER_SCHEDULER_ENABLED=true`
 
+## Governance approval workflow (baseline)
+
+- Added first-pass approval queue for AI policy changes using `ai_governance_policy_requests`.
+- Behavior:
+  - when `AI_GOVERNANCE_REQUIRE_APPROVAL=true`, non-admin `PATCH /governance/policy` calls are auto-converted into pending requests.
+  - admins can approve/reject requests via dedicated review endpoints.
+  - on approve, requested policy is applied to target user's governance profile.
+
 ## Remaining limitation
 
-- Full policy governance is still evolving (current controls include profile-managed daily budget thresholds, but not organization-wide approval workflows).
-- Governance event trail is now persisted for live-policy allow/block outcomes.
+- Governance event trail is persisted for live-policy allow/block outcomes.
+- Approval workflow is currently user+admin scoped (no multi-step approver chains or org/team hierarchy yet).
 
 ## AI runtime configuration
 
@@ -77,6 +89,7 @@ flowchart TD
 - `AI_DAILY_COST_BUDGET_USD` (optional, default `0` disabled)
 - `AI_DAILY_TOKEN_BUDGET` (optional, default `0` disabled)
 - `AI_PROVIDER_DAILY_COST_BUDGET_USD` (optional, default `0` disabled)
+- `AI_GOVERNANCE_REQUIRE_APPROVAL` (optional, default `false`)
 
 ## Governance policy flow
 
@@ -90,4 +103,17 @@ flowchart TD
   F --> G{Budget exceeded?}
   G -->|yes| E
   G -->|no| H[Allow live provider call]
+```
+
+## Governance approval queue flow
+
+```mermaid
+flowchart TD
+  A[User submits governance policy update] --> B{Approval required and non-admin?}
+  B -->|no| C[Apply policy immediately]
+  B -->|yes| D[Create pending policy request]
+  D --> E[Admin reviews request]
+  E --> F{Approve or reject}
+  F -->|Approve| G[Apply requested policy profile]
+  F -->|Reject| H[Persist rejected review note]
 ```

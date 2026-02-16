@@ -15,6 +15,7 @@ import { AgentExecutor } from './services/agent-executor.service';
 import { AIDecisionLogService } from './services/ai-decision-log.service';
 import { AICostLedgerService } from './services/ai-cost-ledger.service';
 import { AIGovernancePolicyService } from './services/ai-governance-policy.service';
+import { AIGovernancePolicyRequestService } from './services/ai-governance-policy-request.service';
 import { AIGovernanceEventService } from './services/ai-governance-event.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
@@ -22,6 +23,9 @@ import { UpdateAgentDto } from './dto/update-agent.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
 import { GetAIGovernanceSummaryDto } from './dto/get-ai-governance-summary.dto';
 import { UpdateAIGovernancePolicyDto } from './dto/update-ai-governance-policy.dto';
+import { CreateAIGovernancePolicyRequestDto } from './dto/create-ai-governance-policy-request.dto';
+import { ReviewAIGovernancePolicyRequestDto } from './dto/review-ai-governance-policy-request.dto';
+import { UserRole } from '../users/entities/user.entity';
 
 @Controller('agents')
 @UseGuards(JwtAuthGuard)
@@ -32,6 +36,7 @@ export class AgentsController {
     private readonly aiDecisionLogService: AIDecisionLogService,
     private readonly aiCostLedgerService: AICostLedgerService,
     private readonly aiGovernancePolicyService: AIGovernancePolicyService,
+    private readonly aiGovernancePolicyRequestService: AIGovernancePolicyRequestService,
     private readonly aiGovernanceEventService: AIGovernanceEventService,
   ) {}
 
@@ -73,7 +78,76 @@ export class AgentsController {
     @Request() req,
     @Body() dto: UpdateAIGovernancePolicyDto,
   ) {
+    if (
+      this.aiGovernancePolicyRequestService.isApprovalRequired() &&
+      req.user.role !== UserRole.ADMIN
+    ) {
+      const request = await this.aiGovernancePolicyRequestService.createRequest({
+        requestedByUserId: req.user.userId,
+        targetUserId: req.user.userId,
+        dto,
+      });
+      return {
+        status: 'pending_approval',
+        message: 'Policy update submitted for admin approval',
+        request,
+      };
+    }
+
     return this.aiGovernancePolicyService.updatePolicyProfile(req.user.userId, dto);
+  }
+
+  @Post('governance/policy/change-requests')
+  @Audit({ action: 'ai-governance-policy.request', resourceType: 'ai-governance-policy-request' })
+  async createAIGovernancePolicyChangeRequest(
+    @Request() req,
+    @Body() dto: CreateAIGovernancePolicyRequestDto,
+  ) {
+    return this.aiGovernancePolicyRequestService.createRequest({
+      requestedByUserId: req.user.userId,
+      targetUserId: req.user.userId,
+      dto,
+    });
+  }
+
+  @Get('governance/policy/change-requests')
+  async getAIGovernancePolicyChangeRequests(@Request() req, @Query('limit') limit?: string) {
+    const parsedLimit = limit ? Number(limit) : 100;
+    return this.aiGovernancePolicyRequestService.listRequestsForUser({
+      userId: req.user.userId,
+      role: req.user.role,
+      limit: parsedLimit,
+    });
+  }
+
+  @Post('governance/policy/change-requests/:id/approve')
+  @Audit({ action: 'ai-governance-policy.request.approve', resourceType: 'ai-governance-policy-request' })
+  async approveAIGovernancePolicyChangeRequest(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() dto: ReviewAIGovernancePolicyRequestDto,
+  ) {
+    return this.aiGovernancePolicyRequestService.approveRequest({
+      requestId: id,
+      reviewerUserId: req.user.userId,
+      reviewerRole: req.user.role,
+      dto,
+    });
+  }
+
+  @Post('governance/policy/change-requests/:id/reject')
+  @Audit({ action: 'ai-governance-policy.request.reject', resourceType: 'ai-governance-policy-request' })
+  async rejectAIGovernancePolicyChangeRequest(
+    @Request() req,
+    @Param('id') id: string,
+    @Body() dto: ReviewAIGovernancePolicyRequestDto,
+  ) {
+    return this.aiGovernancePolicyRequestService.rejectRequest({
+      requestId: id,
+      reviewerUserId: req.user.userId,
+      reviewerRole: req.user.role,
+      dto,
+    });
   }
 
   @Get(':id')

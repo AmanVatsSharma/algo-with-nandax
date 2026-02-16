@@ -86,7 +86,7 @@ This document reflects **actual code state** and intentionally separates shipped
 
 | Capability | Status | Notes |
 |---|---|---|
-| Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted decision logs + governance summary/ledger APIs + profile-managed daily budget policy guardrails; centralized org-wide approval workflows pending |
+| Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted decision logs + governance summary/ledger APIs + profile-managed daily budget policy guardrails + admin approval queue baseline for policy updates; multi-step org approver hierarchy still pending |
 | AI cost ledger baseline | ✅ | Daily rollup table + scheduler + governance ledger API shipped |
 | AI governance event trail | ✅ | Live policy allow/block events persisted + API + dashboard rendering |
 | Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + constrained portfolio optimization + hybrid impact model (linear/square-root + volatility weighting) shipped; full order-book microstructure model pending |
