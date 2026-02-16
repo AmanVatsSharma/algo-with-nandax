@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { agentsApi, strategiesApi } from '@/lib/api';
+import { agentsApi, brokerApi, strategiesApi } from '@/lib/api';
 import { ArrowLeft, Bot } from 'lucide-react';
 
 type AgentType = 'ai_powered' | 'rule_based' | 'hybrid';
 
 export default function NewAgentPage() {
   const [strategies, setStrategies] = useState<any[]>([]);
+  const [connections, setConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchingStrategies, setFetchingStrategies] = useState(true);
   const [errorMessage, setErrorMessage] = useState('');
@@ -17,6 +18,7 @@ export default function NewAgentPage() {
   const [form, setForm] = useState({
     name: '',
     strategyId: '',
+    connectionId: '',
     type: 'ai_powered' as AgentType,
     allocatedCapital: '100000',
     autoTrade: true,
@@ -30,6 +32,12 @@ export default function NewAgentPage() {
       try {
         const response = await strategiesApi.getAll();
         setStrategies(response.data ?? []);
+
+        const connectionsResponse = await brokerApi.getConnections();
+        const activeConnections = (connectionsResponse.data ?? []).filter(
+          (connection: any) => connection.status === 'connected',
+        );
+        setConnections(activeConnections);
       } catch (error: any) {
         console.error('fetch-strategies-for-agent-error', error);
         setErrorMessage(error?.response?.data?.message ?? 'Failed to fetch strategies');
@@ -52,10 +60,15 @@ export default function NewAgentPage() {
         setErrorMessage('Please select a strategy');
         return;
       }
+      if (!form.connectionId) {
+        setErrorMessage('Please select an active broker connection');
+        return;
+      }
 
       const payload = {
         name: form.name,
         strategyId: form.strategyId,
+        connectionId: form.connectionId,
         type: form.type,
         allocatedCapital: Number(form.allocatedCapital),
         autoTrade: form.autoTrade,
@@ -120,6 +133,23 @@ export default function NewAgentPage() {
               {strategies.map((strategy) => (
                 <option key={strategy.id} value={strategy.id}>
                   {strategy.name} ({strategy.type})
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Broker connection">
+            <select
+              value={form.connectionId}
+              onChange={(e) => setForm({ ...form, connectionId: e.target.value })}
+              required
+              disabled={fetchingStrategies}
+              className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+            >
+              <option value="">Select active connection</option>
+              {connections.map((connection) => (
+                <option key={connection.id} value={connection.id}>
+                  {connection.brokerType} ({connection.id.slice(0, 8)}...)
                 </option>
               ))}
             </select>

@@ -18,6 +18,10 @@ export class CreateAgentDto {
 
   @IsNotEmpty()
   @IsString()
+  connectionId: string;
+
+  @IsNotEmpty()
+  @IsString()
   name: string;
 
   @IsOptional()

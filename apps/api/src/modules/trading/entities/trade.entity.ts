@@ -34,6 +34,7 @@ export enum TradeStatus {
 @Entity('trades')
 @Index(['userId', 'status'])
 @Index(['agentId', 'status'])
+@Index(['connectionId'])
 @Index(['symbol', 'createdAt'])
 export class Trade extends BaseEntity {
   @Column({ type: 'uuid' })
@@ -41,6 +42,9 @@ export class Trade extends BaseEntity {
 
   @Column({ type: 'uuid' })
   agentId: string;
+
+  @Column({ type: 'uuid' })
+  connectionId: string;
 
   @Column({ type: 'varchar', length: 100 })
   symbol: string;

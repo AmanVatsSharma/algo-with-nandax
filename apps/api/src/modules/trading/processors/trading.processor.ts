@@ -17,7 +17,7 @@ export class TradingProcessor {
 
   @Process('place-order')
   async handlePlaceOrder(job: Job) {
-    const { tradeId, connectionId, orderData } = job.data;
+    const { tradeId, orderData } = job.data;
     this.logger.log(`Processing place order for trade: ${tradeId}`);
 
     try {
@@ -26,7 +26,7 @@ export class TradingProcessor {
       // Place order via broker
       const orderResult = await this.brokerService.placeKiteOrder(
         trade.userId,
-        connectionId,
+        trade.connectionId,
         orderData,
       );
 
@@ -55,7 +55,7 @@ export class TradingProcessor {
 
   @Process('close-trade')
   async handleCloseTrade(job: Job) {
-    const { tradeId, connectionId, orderData, exitReason } = job.data;
+    const { tradeId, orderData, exitReason } = job.data;
     this.logger.log(`Processing close trade: ${tradeId}`);
 
     try {
@@ -64,7 +64,7 @@ export class TradingProcessor {
       // Place exit order via broker
       const orderResult = await this.brokerService.placeKiteOrder(
         trade.userId,
-        connectionId,
+        trade.connectionId,
         orderData,
       );
 

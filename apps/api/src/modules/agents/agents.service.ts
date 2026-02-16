@@ -2,15 +2,19 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Agent, AgentStatus } from './entities/agent.entity';
+import { BrokerService } from '../broker/broker.service';
 
 @Injectable()
 export class AgentsService {
   constructor(
     @InjectRepository(Agent)
     private readonly agentRepository: Repository<Agent>,
+    private readonly brokerService: BrokerService,
   ) {}
 
   async create(userId: string, agentData: Partial<Agent>): Promise<Agent> {
+    await this.brokerService.getConnectionById(agentData.connectionId, userId);
+
     const agent = this.agentRepository.create({
       ...agentData,
       userId,
@@ -54,6 +58,10 @@ export class AgentsService {
     
     if (agent.status === AgentStatus.RUNNING) {
       throw new ForbiddenException('Cannot update running agent. Please stop it first.');
+    }
+
+    if (updateData.connectionId) {
+      await this.brokerService.getConnectionById(updateData.connectionId, userId);
     }
 
     await this.agentRepository.update(id, updateData);

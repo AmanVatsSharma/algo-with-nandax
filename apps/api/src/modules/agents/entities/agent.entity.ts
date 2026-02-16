@@ -21,12 +21,16 @@ export enum AgentType {
 @Entity('agents')
 @Index(['userId', 'status'])
 @Index(['strategyId'])
+@Index(['connectionId'])
 export class Agent extends BaseEntity {
   @Column({ type: 'uuid' })
   userId: string;
 
   @Column({ type: 'uuid' })
   strategyId: string;
+
+  @Column({ type: 'uuid' })
+  connectionId: string;
 
   @Column({ type: 'varchar', length: 255 })
   name: string;

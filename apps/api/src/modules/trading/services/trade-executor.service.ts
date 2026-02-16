@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
 import { JobOptions, Queue } from 'bull';
 import { TradingService } from '../trading.service';
@@ -41,6 +41,7 @@ export class TradeExecutor {
       const trade = await this.tradingService.create({
         userId,
         agentId,
+        connectionId,
         ...tradeData,
         entryPrice: tradeData.price || 0,
       });
@@ -50,7 +51,6 @@ export class TradeExecutor {
         'place-order',
         {
           tradeId: trade.id,
-          connectionId,
           orderData: {
             tradingsymbol: tradeData.symbol,
             exchange: 'NSE', // Default to NSE, can be made configurable
@@ -85,12 +85,15 @@ export class TradeExecutor {
     try {
       const trade = await this.tradingService.findByIdAndUser(tradeId, userId);
 
+      if (trade.connectionId !== connectionId) {
+        throw new BadRequestException('Trade does not belong to provided broker connection');
+      }
+
       // Queue the exit order
       await this.tradingQueue.add(
         'close-trade',
         {
           tradeId: trade.id,
-          connectionId,
           exitReason,
           orderData: {
             tradingsymbol: trade.symbol,

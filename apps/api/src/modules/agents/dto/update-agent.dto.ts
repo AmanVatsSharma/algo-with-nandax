@@ -17,6 +17,10 @@ export class UpdateAgentDto {
 
   @IsOptional()
   @IsString()
+  connectionId?: string;
+
+  @IsOptional()
+  @IsString()
   name?: string;
 
   @IsOptional()
