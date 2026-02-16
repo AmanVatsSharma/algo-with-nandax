@@ -26,7 +26,7 @@ flowchart TD
   - `maxDailyProfit`
 - Uses live broker quotes for decision inputs.
 - Blocks live placement if:
-  - agent is `paperTrading=true`,
+  - agent is `paperTrading=true` (paper orders are simulated and stored as trades),
   - or `autoTrade=false`,
   - or quote/LTP is missing.
 

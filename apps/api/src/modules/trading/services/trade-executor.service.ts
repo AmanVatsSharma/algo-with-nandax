@@ -3,6 +3,7 @@ import { InjectQueue } from '@nestjs/bull';
 import { JobOptions, Queue } from 'bull';
 import { TradingService } from '../trading.service';
 import { OrderSide, OrderType } from '../entities/trade.entity';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class TradeExecutor {
@@ -72,6 +73,53 @@ export class TradeExecutor {
       return trade;
     } catch (error) {
       this.logger.error('Error executing trade', error);
+      throw error;
+    }
+  }
+
+  async executePaperTrade(
+    userId: string,
+    agentId: string,
+    connectionId: string,
+    tradeData: {
+      symbol: string;
+      side: OrderSide;
+      quantity: number;
+      orderType: OrderType;
+      price: number;
+      stopLoss?: number;
+      takeProfit?: number;
+      metadata?: Record<string, unknown>;
+    },
+  ) {
+    try {
+      const trade = await this.tradingService.create({
+        userId,
+        agentId,
+        connectionId,
+        symbol: tradeData.symbol,
+        side: tradeData.side,
+        quantity: tradeData.quantity,
+        orderType: tradeData.orderType,
+        entryPrice: tradeData.price,
+        stopLoss: tradeData.stopLoss,
+        takeProfit: tradeData.takeProfit,
+        metadata: {
+          ...(tradeData.metadata ?? {}),
+          paperTrade: true,
+        },
+      });
+
+      const paperOrderId = `paper-${randomUUID()}`;
+      await this.tradingService.updateEntryExecution(trade.id, tradeData.price, paperOrderId);
+
+      this.logger.log(
+        `Paper trade executed for agent ${agentId}: ${tradeData.side} ${tradeData.quantity} ${tradeData.symbol} @ ${tradeData.price}`,
+      );
+
+      return this.tradingService.findById(trade.id);
+    } catch (error) {
+      this.logger.error('Error executing paper trade', error);
       throw error;
     }
   }

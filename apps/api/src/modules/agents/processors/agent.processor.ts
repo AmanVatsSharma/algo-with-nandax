@@ -113,11 +113,6 @@ export class AgentProcessor {
             return { success: true, decision, executed: false, reason: 'auto-trade-disabled' };
           }
 
-          if (agent.paperTrading) {
-            this.logger.warn(`Agent ${agentId} is in paperTrading mode. Live order skipped.`);
-            return { success: true, decision, executed: false, reason: 'paper-trading-enabled' };
-          }
-
           const symbol = decision.symbol ?? strategy.instruments[0];
           const ltp = this.getInstrumentLtp(marketData, symbol);
           if (!ltp || ltp <= 0) {
@@ -128,6 +123,25 @@ export class AgentProcessor {
           }
 
           const quantity = Math.max(1, Math.floor(Number(strategy.maxCapitalPerTrade) / ltp));
+
+          if (agent.paperTrading) {
+            await this.tradeExecutor.executePaperTrade(agent.userId, agent.id, agent.connectionId, {
+              symbol,
+              side: decision.action === 'buy' ? OrderSide.BUY : OrderSide.SELL,
+              quantity,
+              orderType: OrderType.MARKET,
+              price: ltp,
+              metadata: {
+                reason: 'paper-trading-mode',
+                decisionConfidence: decision.confidence,
+              },
+            });
+
+            this.logger.warn(
+              `Agent ${agentId} paper trade simulated: ${decision.action} ${quantity} ${symbol} @ ${ltp}`,
+            );
+            return { success: true, decision, executed: true, reason: 'paper-trading-simulated' };
+          }
 
           await this.tradeExecutor.executeTrade(agent.userId, agent.id, agent.connectionId, {
             symbol,
