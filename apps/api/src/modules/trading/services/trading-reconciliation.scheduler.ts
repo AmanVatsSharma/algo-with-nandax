@@ -6,6 +6,7 @@ import { getErrorMessage } from '@/common/utils/error.utils';
 
 interface ReconciliationSummary {
   scanned: number;
+  groups: number;
   processed: number;
   executed: number;
   partiallyFilled: number;
@@ -43,6 +44,7 @@ export class TradingReconciliationScheduler {
 
     const summary: ReconciliationSummary = {
       scanned: 0,
+      groups: 0,
       processed: 0,
       executed: 0,
       partiallyFilled: 0,
@@ -64,13 +66,18 @@ export class TradingReconciliationScheduler {
       `Auto reconciliation cycle started for ${candidates.length} pending orders`,
     );
 
-    for (const candidate of candidates) {
+    const groupedCandidates = this.groupByUserAndConnection(candidates);
+    summary.groups = groupedCandidates.length;
+
+    for (const candidateGroup of groupedCandidates) {
       try {
-        const result = await this.tradingService.reconcileTrades(candidate.userId, {
-          tradeId: candidate.id,
-          connectionId: candidate.connectionId,
-          maxItems: 1,
-        });
+        const result = await this.tradingService.reconcileTradesFromOrdersSnapshot(
+          candidateGroup.userId,
+          {
+            connectionId: candidateGroup.connectionId,
+            maxItems: Math.min(candidateGroup.tradeIds.length, this.batchSize),
+          },
+        );
 
         summary.processed += result.processed;
         summary.executed += result.executed;
@@ -82,14 +89,34 @@ export class TradingReconciliationScheduler {
       } catch (error) {
         summary.failed += 1;
         this.logger.warn(
-          `Auto reconciliation failed for trade=${candidate.id}: ${getErrorMessage(error)}`,
+          `Auto reconciliation failed for user=${candidateGroup.userId} connection=${candidateGroup.connectionId}: ${getErrorMessage(error)}`,
         );
       }
     }
 
     this.logger.log(
-      `Auto reconciliation cycle completed scanned=${summary.scanned} processed=${summary.processed} executed=${summary.executed} partiallyFilled=${summary.partiallyFilled} rejected=${summary.rejected} cancelled=${summary.cancelled} open=${summary.open} failed=${summary.failed}`,
+      `Auto reconciliation cycle completed scanned=${summary.scanned} groups=${summary.groups} processed=${summary.processed} executed=${summary.executed} partiallyFilled=${summary.partiallyFilled} rejected=${summary.rejected} cancelled=${summary.cancelled} open=${summary.open} failed=${summary.failed}`,
     );
+  }
+
+  private groupByUserAndConnection(
+    candidates: Array<Pick<{ id: string; userId: string; connectionId: string }, 'id' | 'userId' | 'connectionId'>>,
+  ) {
+    const grouped = new Map<string, { userId: string; connectionId: string; tradeIds: string[] }>();
+    for (const candidate of candidates) {
+      const key = `${candidate.userId}:${candidate.connectionId}`;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.tradeIds.push(candidate.id);
+        continue;
+      }
+      grouped.set(key, {
+        userId: candidate.userId,
+        connectionId: candidate.connectionId,
+        tradeIds: [candidate.id],
+      });
+    }
+    return Array.from(grouped.values());
   }
 
   private parseBoolean(value: string | boolean): boolean {

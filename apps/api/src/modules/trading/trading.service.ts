@@ -4,11 +4,29 @@ import { Repository, Between, In, FindOptionsWhere } from 'typeorm';
 import { Trade, TradeStatus, OrderStatus, OrderSide } from './entities/trade.entity';
 import { BrokerService } from '../broker/broker.service';
 import { getErrorMessage } from '@/common/utils/error.utils';
+import { KiteOrderEntry, KiteOrderHistoryEntry } from '../broker/services/kite.service';
 
 const PENDING_RECONCILIATION_STATUSES: OrderStatus[] = [
   OrderStatus.PLACED,
   OrderStatus.PARTIALLY_FILLED,
 ];
+
+interface ReconciliationResult {
+  processed: number;
+  executed: number;
+  partiallyFilled: number;
+  rejected: number;
+  cancelled: number;
+  open: number;
+  failed: number;
+  details: Array<Record<string, unknown>>;
+}
+
+type KiteOrderStateLike = Pick<
+  KiteOrderEntry,
+  'status' | 'filled_quantity' | 'pending_quantity' | 'average_price' | 'status_message'
+> &
+  Partial<Pick<KiteOrderHistoryEntry, 'order_timestamp' | 'exchange_timestamp'>>;
 
 @Injectable()
 export class TradingService {
@@ -323,16 +341,7 @@ export class TradingService {
           take: maxItems,
         });
 
-    const result = {
-      processed: 0,
-      executed: 0,
-      partiallyFilled: 0,
-      rejected: 0,
-      cancelled: 0,
-      open: 0,
-      failed: 0,
-      details: [] as Array<Record<string, unknown>>,
-    };
+    const result = this.createReconciliationResult();
 
     for (const trade of trades) {
       const isExitOrderPending = trade.status === TradeStatus.OPEN && Boolean(trade.exitOrderId);
@@ -354,76 +363,25 @@ export class TradingService {
           trade.connectionId,
           orderId,
         );
-        const status = String(latestState?.status ?? '').toLowerCase();
-        const filledQuantity = Number(latestState?.filled_quantity ?? 0);
-        const pendingQuantity = Number(latestState?.pending_quantity ?? 0);
-        const averagePrice = Number(latestState?.average_price ?? 0);
-        const resolvedPrice = Number.isFinite(averagePrice) && averagePrice > 0
-          ? averagePrice
-          : Number(isExitOrderPending ? trade.executedExitPrice ?? trade.exitPrice ?? trade.entryPrice : trade.executedEntryPrice ?? trade.entryPrice);
-        const statusMessage = latestState?.status_message ?? undefined;
-
-        if (
-          (status === 'open' || status === 'trigger pending') &&
-          filledQuantity > 0 &&
-          pendingQuantity > 0
-        ) {
-          if (isExitOrderPending) {
-            await this.markExitOrderPartiallyFilled(trade.id, {
-              orderId,
-              averagePrice: resolvedPrice,
-              filledQuantity,
-              pendingQuantity,
-              statusMessage,
-              exitReason: trade.exitReason,
-            });
-          } else {
-            await this.markEntryOrderPartiallyFilled(trade.id, {
-              orderId,
-              averagePrice: resolvedPrice,
-              filledQuantity,
-              pendingQuantity,
-              statusMessage,
-            });
-          }
-          result.partiallyFilled += 1;
+        if (!latestState) {
+          result.open += 1;
           result.details.push({
             tradeId: trade.id,
-            status: 'partially_filled',
+            status: 'open',
             orderId,
-            filledQuantity,
-            pendingQuantity,
+            brokerStatus: 'missing',
           });
           result.processed += 1;
           continue;
         }
 
-        if (status === 'complete') {
-          if (isExitOrderPending) {
-            await this.updateExitExecution(trade.id, resolvedPrice, orderId, trade.exitReason);
-          } else {
-            await this.updateEntryExecution(trade.id, resolvedPrice, orderId);
-          }
-          result.executed += 1;
-          result.details.push({ tradeId: trade.id, status: 'executed', orderId });
-        } else if (status === 'rejected') {
-          await this.updateOrderStatus(trade.id, OrderStatus.REJECTED, statusMessage);
-          result.rejected += 1;
-          result.details.push({ tradeId: trade.id, status: 'rejected', orderId, statusMessage });
-        } else if (status === 'cancelled' || status === 'canceled') {
-          if (isExitOrderPending) {
-            await this.updateOrderStatus(trade.id, OrderStatus.CANCELLED, statusMessage);
-          } else {
-            await this.cancelTrade(trade.id);
-          }
-          result.cancelled += 1;
-          result.details.push({ tradeId: trade.id, status: 'cancelled', orderId, statusMessage });
-        } else {
-          result.open += 1;
-          result.details.push({ tradeId: trade.id, status: 'open', orderId, brokerStatus: status || 'unknown' });
-        }
-
-        result.processed += 1;
+        await this.applyOrderStateToTrade({
+          trade,
+          orderId,
+          isExitOrderPending,
+          latestState,
+          result,
+        });
       } catch (error) {
         result.failed += 1;
         result.details.push({
@@ -435,6 +393,232 @@ export class TradingService {
     }
 
     return result;
+  }
+
+  async reconcileTradesFromOrdersSnapshot(
+    userId: string,
+    payload: {
+      connectionId: string;
+      maxItems?: number;
+    },
+  ) {
+    const maxItems = Math.min(Math.max(payload.maxItems ?? 200, 1), 500);
+    const trades = await this.tradeRepository.find({
+      where: {
+        userId,
+        connectionId: payload.connectionId,
+        orderStatus: In(PENDING_RECONCILIATION_STATUSES),
+      },
+      order: { updatedAt: 'ASC' },
+      take: maxItems,
+    });
+
+    const result = this.createReconciliationResult();
+    if (!trades.length) {
+      return result;
+    }
+
+    const orders = await this.brokerService.getKiteOrders(userId, payload.connectionId);
+    const latestStateByOrderId = this.buildLatestStateByOrderId(orders);
+
+    for (const trade of trades) {
+      const isExitOrderPending = trade.status === TradeStatus.OPEN && Boolean(trade.exitOrderId);
+      const orderId = isExitOrderPending ? trade.exitOrderId : trade.entryOrderId;
+
+      if (!orderId) {
+        result.failed += 1;
+        result.details.push({
+          tradeId: trade.id,
+          status: 'failed',
+          reason: 'Missing orderId for snapshot reconciliation',
+        });
+        continue;
+      }
+
+      const latestState = latestStateByOrderId.get(orderId);
+      if (!latestState) {
+        result.open += 1;
+        result.details.push({
+          tradeId: trade.id,
+          status: 'open',
+          orderId,
+          brokerStatus: 'not-found-in-orders-snapshot',
+        });
+        result.processed += 1;
+        continue;
+      }
+
+      try {
+        await this.applyOrderStateToTrade({
+          trade,
+          orderId,
+          isExitOrderPending,
+          latestState,
+          result,
+        });
+      } catch (error) {
+        result.failed += 1;
+        result.details.push({
+          tradeId: trade.id,
+          status: 'failed',
+          orderId,
+          reason: getErrorMessage(error),
+        });
+      }
+    }
+
+    return result;
+  }
+
+  private createReconciliationResult(): ReconciliationResult {
+    return {
+      processed: 0,
+      executed: 0,
+      partiallyFilled: 0,
+      rejected: 0,
+      cancelled: 0,
+      open: 0,
+      failed: 0,
+      details: [],
+    };
+  }
+
+  private buildLatestStateByOrderId(orders: KiteOrderEntry[]) {
+    const map = new Map<string, KiteOrderStateLike>();
+    for (const order of orders ?? []) {
+      const orderId = String(order.order_id ?? '').trim();
+      if (!orderId) {
+        continue;
+      }
+      const existing = map.get(orderId);
+      const candidateTimestamp = String(order.exchange_timestamp ?? order.order_timestamp ?? '');
+      const existingTimestamp = String(
+        (existing as KiteOrderEntry | undefined)?.exchange_timestamp ??
+          (existing as KiteOrderEntry | undefined)?.order_timestamp ??
+          '',
+      );
+      if (!existing || candidateTimestamp >= existingTimestamp) {
+        map.set(orderId, order);
+      }
+    }
+    return map;
+  }
+
+  private async applyOrderStateToTrade(input: {
+    trade: Trade;
+    orderId: string;
+    isExitOrderPending: boolean;
+    latestState: KiteOrderStateLike;
+    result: ReconciliationResult;
+  }) {
+    const status = String(input.latestState?.status ?? '').toLowerCase();
+    const filledQuantity = Number(input.latestState?.filled_quantity ?? 0);
+    const pendingQuantity = Number(input.latestState?.pending_quantity ?? 0);
+    const averagePrice = Number(input.latestState?.average_price ?? 0);
+    const resolvedPrice =
+      Number.isFinite(averagePrice) && averagePrice > 0
+        ? averagePrice
+        : Number(
+            input.isExitOrderPending
+              ? input.trade.executedExitPrice ?? input.trade.exitPrice ?? input.trade.entryPrice
+              : input.trade.executedEntryPrice ?? input.trade.entryPrice,
+          );
+    const statusMessage = input.latestState?.status_message ?? undefined;
+
+    if (
+      (status === 'open' || status === 'trigger pending') &&
+      filledQuantity > 0 &&
+      pendingQuantity > 0
+    ) {
+      if (input.isExitOrderPending) {
+        await this.markExitOrderPartiallyFilled(input.trade.id, {
+          orderId: input.orderId,
+          averagePrice: resolvedPrice,
+          filledQuantity,
+          pendingQuantity,
+          statusMessage,
+          exitReason: input.trade.exitReason,
+        });
+      } else {
+        await this.markEntryOrderPartiallyFilled(input.trade.id, {
+          orderId: input.orderId,
+          averagePrice: resolvedPrice,
+          filledQuantity,
+          pendingQuantity,
+          statusMessage,
+        });
+      }
+      input.result.partiallyFilled += 1;
+      input.result.details.push({
+        tradeId: input.trade.id,
+        status: 'partially_filled',
+        orderId: input.orderId,
+        filledQuantity,
+        pendingQuantity,
+      });
+      input.result.processed += 1;
+      return;
+    }
+
+    if (status === 'complete') {
+      if (input.isExitOrderPending) {
+        await this.updateExitExecution(
+          input.trade.id,
+          resolvedPrice,
+          input.orderId,
+          input.trade.exitReason,
+        );
+      } else {
+        await this.updateEntryExecution(input.trade.id, resolvedPrice, input.orderId);
+      }
+      input.result.executed += 1;
+      input.result.details.push({
+        tradeId: input.trade.id,
+        status: 'executed',
+        orderId: input.orderId,
+      });
+      input.result.processed += 1;
+      return;
+    }
+
+    if (status === 'rejected') {
+      await this.updateOrderStatus(input.trade.id, OrderStatus.REJECTED, statusMessage);
+      input.result.rejected += 1;
+      input.result.details.push({
+        tradeId: input.trade.id,
+        status: 'rejected',
+        orderId: input.orderId,
+        statusMessage,
+      });
+      input.result.processed += 1;
+      return;
+    }
+
+    if (status === 'cancelled' || status === 'canceled') {
+      if (input.isExitOrderPending) {
+        await this.updateOrderStatus(input.trade.id, OrderStatus.CANCELLED, statusMessage);
+      } else {
+        await this.cancelTrade(input.trade.id);
+      }
+      input.result.cancelled += 1;
+      input.result.details.push({
+        tradeId: input.trade.id,
+        status: 'cancelled',
+        orderId: input.orderId,
+        statusMessage,
+      });
+      input.result.processed += 1;
+      return;
+    }
+
+    input.result.open += 1;
+    input.result.details.push({
+      tradeId: input.trade.id,
+      status: 'open',
+      orderId: input.orderId,
+      brokerStatus: status || 'unknown',
+    });
+    input.result.processed += 1;
   }
 
   private calculatePnL(

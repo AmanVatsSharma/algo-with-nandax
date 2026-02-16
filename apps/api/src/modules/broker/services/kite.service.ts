@@ -25,6 +25,18 @@ export interface KiteOrderHistoryEntry {
   status_message?: string;
 }
 
+export interface KiteOrderEntry {
+  order_id: string;
+  status: string;
+  average_price: number;
+  filled_quantity: number;
+  pending_quantity: number;
+  cancelled_quantity: number;
+  order_timestamp?: string;
+  exchange_timestamp?: string;
+  status_message?: string;
+}
+
 @Injectable()
 export class KiteService {
   private readonly logger = new Logger(KiteService.name);
@@ -165,12 +177,12 @@ export class KiteService {
    */
   async getOrders(accessToken: string, apiKey?: string) {
     try {
-      const response = await firstValueFrom<AxiosResponse<KiteApiResponse<any>>>(
-        this.httpService.get<KiteApiResponse<any>>(`${this.baseUrl}/orders`, {
+      const response = await firstValueFrom<AxiosResponse<KiteApiResponse<KiteOrderEntry[]>>>(
+        this.httpService.get<KiteApiResponse<KiteOrderEntry[]>>(`${this.baseUrl}/orders`, {
           headers: this.getHeaders(accessToken, apiKey),
         }),
       );
-      return response.data.data;
+      return response.data.data ?? [];
     } catch (error) {
       this.logKiteError('getOrders', error);
       throw error;

@@ -8,6 +8,7 @@ describe('TradingService reconcileTrades', () => {
 
   const brokerServiceMock = {
     getKiteLatestOrderState: jest.fn(),
+    getKiteOrders: jest.fn(),
   };
 
   let service: TradingService;
@@ -82,5 +83,42 @@ describe('TradingService reconcileTrades', () => {
     );
     expect(result.partiallyFilled).toBe(1);
     expect(result.executed).toBe(0);
+  });
+
+  it('reconciles pending trades from single orders snapshot call', async () => {
+    tradeRepositoryMock.find.mockResolvedValue([
+      {
+        id: 'trade-4',
+        userId: 'user-1',
+        connectionId: 'conn-1',
+        entryOrderId: 'order-4',
+        status: TradeStatus.OPEN,
+        orderStatus: OrderStatus.PLACED,
+        side: OrderSide.BUY,
+        entryPrice: 100,
+      },
+    ]);
+    brokerServiceMock.getKiteOrders.mockResolvedValue([
+      {
+        order_id: 'order-4',
+        status: 'COMPLETE',
+        average_price: 102,
+        filled_quantity: 10,
+        pending_quantity: 0,
+      },
+    ]);
+
+    const updateEntryExecutionSpy = jest
+      .spyOn(service, 'updateEntryExecution')
+      .mockResolvedValue({} as any);
+
+    const result = await service.reconcileTradesFromOrdersSnapshot('user-1', {
+      connectionId: 'conn-1',
+      maxItems: 50,
+    });
+
+    expect(brokerServiceMock.getKiteOrders).toHaveBeenCalledWith('user-1', 'conn-1');
+    expect(updateEntryExecutionSpy).toHaveBeenCalledWith('trade-4', 102, 'order-4');
+    expect(result.executed).toBe(1);
   });
 });
