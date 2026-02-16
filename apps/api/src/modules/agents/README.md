@@ -46,6 +46,9 @@ flowchart TD
   - `aiLiveMode` is enabled in strategy/model config
   - provider API key is configured in environment.
 - Live mode has retry + timeout and deterministic fallback on failures.
+- Every strategy cycle persists AI decision logs (`ai_decision_logs`) with provider/mode/model/action/confidence/tokens/cost metadata.
+- API endpoint for audit-style review:
+  - `GET /api/v1/agents/:id/decision-logs?limit=100`
 
 ## Remaining limitation
 

@@ -11,6 +11,7 @@ import { OrderSide, OrderType } from '@/modules/trading/entities/trade.entity';
 import { getErrorMessage } from '@/common/utils/error.utils';
 import { BrokerService } from '@/modules/broker/broker.service';
 import { RiskService } from '@/modules/risk/risk.service';
+import { AIDecisionLogService } from '../services/ai-decision-log.service';
 
 type AgentDecision = {
   action: 'buy' | 'sell' | 'hold';
@@ -31,6 +32,7 @@ export class AgentProcessor {
     private readonly strategyService: StrategyService,
     private readonly brokerService: BrokerService,
     private readonly riskService: RiskService,
+    private readonly aiDecisionLogService: AIDecisionLogService,
   ) {}
 
   @Process('execute-strategy')
@@ -122,6 +124,24 @@ export class AgentProcessor {
       } else {
         decision = this.executeRuleBasedStrategy(marketData, strategyConfig);
       }
+
+      await this.aiDecisionLogService.logDecision({
+        userId: agent.userId,
+        agentId: agent.id,
+        provider: String(decision.metadata?.provider ?? (agentType === AgentType.AI_POWERED ? 'ai' : 'rule')),
+        mode: String(decision.metadata?.mode ?? (agentType === AgentType.AI_POWERED ? 'ai' : 'deterministic')),
+        model: agent.aiModelName ?? undefined,
+        action: decision.action,
+        confidence: decision.confidence,
+        estimatedTokens: this.toOptionalNumber(decision.metadata?.estimatedTokens),
+        estimatedCostUsd: this.toOptionalNumber(decision.metadata?.estimatedCostUsd),
+        reason: this.toOptionalString(decision.metadata?.reason),
+        metadata: {
+          symbol: decision.symbol ?? strategy.instruments?.[0] ?? null,
+          strategyId: strategy.id,
+          decisionMetadata: decision.metadata ?? {},
+        },
+      });
 
       // Execute trade if decision is buy or sell
       if (decision.action === 'buy' || decision.action === 'sell') {
@@ -310,5 +330,22 @@ export class AgentProcessor {
     }
 
     return numericValue;
+  }
+
+  private toOptionalNumber(value: unknown): number | undefined {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+      return undefined;
+    }
+
+    return numericValue;
+  }
+
+  private toOptionalString(value: unknown): string | undefined {
+    if (typeof value !== 'string') {
+      return undefined;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed : undefined;
   }
 }

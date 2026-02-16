@@ -6,11 +6,13 @@ import {
   Delete,
   Body,
   Param,
+  Query,
   UseGuards,
   Request,
 } from '@nestjs/common';
 import { AgentsService } from './agents.service';
 import { AgentExecutor } from './services/agent-executor.service';
+import { AIDecisionLogService } from './services/ai-decision-log.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
@@ -22,6 +24,7 @@ export class AgentsController {
   constructor(
     private readonly agentsService: AgentsService,
     private readonly agentExecutor: AgentExecutor,
+    private readonly aiDecisionLogService: AIDecisionLogService,
   ) {}
 
   @Post()
@@ -38,6 +41,13 @@ export class AgentsController {
   @Get(':id')
   async findOne(@Param('id') id: string, @Request() req) {
     return this.agentsService.findByIdAndUser(id, req.user.userId);
+  }
+
+  @Get(':id/decision-logs')
+  async findDecisionLogs(@Param('id') id: string, @Request() req, @Query('limit') limit?: string) {
+    await this.agentsService.findByIdAndUser(id, req.user.userId);
+    const parsedLimit = limit ? Number(limit) : 100;
+    return this.aiDecisionLogService.getRecentLogs(req.user.userId, id, parsedLimit);
   }
 
   @Patch(':id')

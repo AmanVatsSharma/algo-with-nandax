@@ -12,6 +12,7 @@ describe('AgentProcessor daily PnL guardrails', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
     );
   });
 
