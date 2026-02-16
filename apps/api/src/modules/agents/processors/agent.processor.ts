@@ -10,6 +10,7 @@ import { AgentType } from '../entities/agent.entity';
 import { OrderSide, OrderType } from '@/modules/trading/entities/trade.entity';
 import { getErrorMessage } from '@/common/utils/error.utils';
 import { BrokerService } from '@/modules/broker/broker.service';
+import { RiskService } from '@/modules/risk/risk.service';
 
 type AgentDecision = {
   action: 'buy' | 'sell' | 'hold';
@@ -29,6 +30,7 @@ export class AgentProcessor {
     private readonly tradeExecutor: TradeExecutor,
     private readonly strategyService: StrategyService,
     private readonly brokerService: BrokerService,
+    private readonly riskService: RiskService,
   ) {}
 
   @Process('execute-strategy')
@@ -67,6 +69,23 @@ export class AgentProcessor {
         (sum, trade) => sum + Number(trade.netPnL ?? 0),
         0,
       );
+
+      const profilePnLEvaluation = await this.riskService.evaluateDailyPnL(
+        agent.userId,
+        agentTodayPnL,
+      );
+      if (!profilePnLEvaluation.allowed) {
+        this.logger.warn(
+          `Agent ${agentId} blocked by profile daily PnL guardrail: ${profilePnLEvaluation.reason}`,
+        );
+        return {
+          success: true,
+          executed: false,
+          reason: profilePnLEvaluation.reason,
+          todayPnL: agentTodayPnL,
+        };
+      }
+
       if (this.shouldBlockTradingByDailyPnL(strategyConfig ?? {}, agentTodayPnL)) {
         this.logger.warn(
           `Agent ${agentId} blocked by daily PnL guardrails. todayPnL=${agentTodayPnL}`,

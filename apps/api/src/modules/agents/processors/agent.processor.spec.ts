@@ -4,7 +4,15 @@ describe('AgentProcessor daily PnL guardrails', () => {
   let processor: AgentProcessor;
 
   beforeEach(() => {
-    processor = new AgentProcessor({} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
+    processor = new AgentProcessor(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
   });
 
   it('blocks when maxDailyLoss is exceeded', () => {

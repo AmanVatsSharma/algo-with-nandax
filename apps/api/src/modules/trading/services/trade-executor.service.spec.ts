@@ -11,13 +11,18 @@ describe('TradeExecutor paper trade', () => {
     updateEntryExecution: jest.fn(),
     findById: jest.fn(),
     findByIdAndUser: jest.fn(),
+    findOpenTrades: jest.fn(async () => []),
+  };
+
+  const riskServiceMock = {
+    evaluateTradeRisk: jest.fn(async () => ({ allowed: true })),
   };
 
   let executor: TradeExecutor;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    executor = new TradeExecutor(queueMock as any, tradingServiceMock as any);
+    executor = new TradeExecutor(queueMock as any, tradingServiceMock as any, riskServiceMock as any);
   });
 
   it('creates and marks paper trade as executed', async () => {

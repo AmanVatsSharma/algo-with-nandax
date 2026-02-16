@@ -4,6 +4,7 @@ import { JobOptions, Queue } from 'bull';
 import { TradingService } from '../trading.service';
 import { OrderSide, OrderType } from '../entities/trade.entity';
 import { randomUUID } from 'crypto';
+import { RiskService } from '@/modules/risk/risk.service';
 
 @Injectable()
 export class TradeExecutor {
@@ -21,6 +22,7 @@ export class TradeExecutor {
   constructor(
     @InjectQueue('trading') private readonly tradingQueue: Queue,
     private readonly tradingService: TradingService,
+    private readonly riskService: RiskService,
   ) {}
 
   async executeTrade(
@@ -38,6 +40,22 @@ export class TradeExecutor {
     },
   ) {
     try {
+      const normalizedPrice = Number(tradeData.price ?? 0);
+      const notionalValue = Math.max(normalizedPrice, 0) * tradeData.quantity;
+      const openTradesForAgent = (await this.tradingService.findOpenTrades(agentId)).length;
+
+      const riskEvaluation = await this.riskService.evaluateTradeRisk(userId, {
+        connectionId,
+        agentId,
+        symbol: tradeData.symbol,
+        notionalValue,
+        openTradesForAgent,
+      });
+
+      if (!riskEvaluation.allowed) {
+        throw new BadRequestException(riskEvaluation.reason ?? 'Trade blocked by risk policy');
+      }
+
       // Create trade record
       const trade = await this.tradingService.create({
         userId,

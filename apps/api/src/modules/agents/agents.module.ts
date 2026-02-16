@@ -9,6 +9,7 @@ import { Agent } from './entities/agent.entity';
 import { StrategyModule } from '../strategy/strategy.module';
 import { TradingModule } from '../trading/trading.module';
 import { BrokerModule } from '../broker/broker.module';
+import { RiskModule } from '../risk/risk.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { BrokerModule } from '../broker/broker.module';
     StrategyModule,
     TradingModule,
     BrokerModule,
+    RiskModule,
   ],
   controllers: [AgentsController],
   providers: [AgentsService, AgentExecutor, AgentProcessor],
