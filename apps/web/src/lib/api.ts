@@ -132,3 +132,18 @@ export const backtestingApi = {
     feePerTrade?: number;
   }) => api.post('/backtesting/run', data),
 };
+
+export const riskApi = {
+  getProfile: () => api.get('/risk/profile'),
+  updateProfile: (data: {
+    maxPositionValuePerTrade?: number;
+    maxDailyLoss?: number;
+    maxDailyProfit?: number;
+    maxOpenTradesPerAgent?: number;
+    killSwitchEnabled?: boolean;
+    killSwitchReason?: string;
+  }) => api.patch('/risk/profile', data),
+  enableKillSwitch: (reason?: string) => api.post('/risk/kill-switch/enable', { reason }),
+  disableKillSwitch: () => api.post('/risk/kill-switch/disable'),
+  getAlerts: (limit: number = 50) => api.get(`/risk/alerts?limit=${limit}`),
+};

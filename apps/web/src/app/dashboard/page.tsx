@@ -19,6 +19,7 @@ import {
   Wallet,
   Sparkles,
   FlaskConical,
+  Shield,
 } from 'lucide-react';
 import { agentsApi, tradesApi, brokerApi } from '@/lib/api';
 import { wsService } from '@/lib/websocket';
@@ -246,7 +247,7 @@ export default function DashboardPage() {
         {activeView === 'overview' && (
           <div className="space-y-8">
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <QuickActionCard
                 title="Deploy AI Agent"
                 description="Launch intelligent trading agents"
@@ -274,6 +275,13 @@ export default function DashboardPage() {
                 icon={<FlaskConical className="w-8 h-8" />}
                 href="/dashboard/backtesting"
                 color="emerald"
+              />
+              <QuickActionCard
+                title="Risk Controls"
+                description="Configure kill-switch and exposure limits"
+                icon={<Shield className="w-8 h-8" />}
+                href="/dashboard/risk"
+                color="amber"
               />
             </div>
 
@@ -408,6 +416,7 @@ function QuickActionCard({ title, description, icon, href, color }: any) {
     purple: 'from-purple-500 to-pink-500 hover:shadow-purple-500/50',
     cyan: 'from-cyan-500 to-teal-500 hover:shadow-cyan-500/50',
     emerald: 'from-emerald-500 to-lime-500 hover:shadow-emerald-500/50',
+    amber: 'from-amber-500 to-orange-500 hover:shadow-amber-500/50',
   };
 
   return (
