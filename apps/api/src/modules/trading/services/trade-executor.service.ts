@@ -1,18 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import { JobOptions, Queue } from 'bull';
 import { TradingService } from '../trading.service';
-import { BrokerService } from '@/modules/broker/broker.service';
-import { OrderSide, OrderType, OrderStatus } from '../entities/trade.entity';
+import { OrderSide, OrderType } from '../entities/trade.entity';
 
 @Injectable()
 export class TradeExecutor {
   private readonly logger = new Logger(TradeExecutor.name);
+  private readonly queueJobOptions: JobOptions = {
+    attempts: 3,
+    backoff: {
+      type: 'exponential',
+      delay: 1500,
+    },
+    removeOnComplete: 50,
+    removeOnFail: 100,
+  };
 
   constructor(
     @InjectQueue('trading') private readonly tradingQueue: Queue,
     private readonly tradingService: TradingService,
-    private readonly brokerService: BrokerService,
   ) {}
 
   async executeTrade(
@@ -39,20 +46,27 @@ export class TradeExecutor {
       });
 
       // Queue the order execution
-      await this.tradingQueue.add('place-order', {
-        tradeId: trade.id,
-        connectionId,
-        orderData: {
-          tradingsymbol: tradeData.symbol,
-          exchange: 'NSE', // Default to NSE, can be made configurable
-          transaction_type: tradeData.side.toUpperCase(),
-          quantity: tradeData.quantity,
-          order_type: this.mapOrderType(tradeData.orderType),
-          product: 'MIS', // Intraday
-          validity: 'DAY',
-          price: tradeData.price || 0,
+      await this.tradingQueue.add(
+        'place-order',
+        {
+          tradeId: trade.id,
+          connectionId,
+          orderData: {
+            tradingsymbol: tradeData.symbol,
+            exchange: 'NSE', // Default to NSE, can be made configurable
+            transaction_type: tradeData.side.toUpperCase(),
+            quantity: tradeData.quantity,
+            order_type: this.mapOrderType(tradeData.orderType),
+            product: 'MIS', // Intraday
+            validity: 'DAY',
+            price: tradeData.price || 0,
+          },
         },
-      });
+        {
+          ...this.queueJobOptions,
+          jobId: `place-order:${trade.id}`,
+        },
+      );
 
       this.logger.log(`Trade queued for execution: ${trade.id}`);
       return trade;
@@ -72,20 +86,27 @@ export class TradeExecutor {
       const trade = await this.tradingService.findByIdAndUser(tradeId, userId);
 
       // Queue the exit order
-      await this.tradingQueue.add('close-trade', {
-        tradeId: trade.id,
-        connectionId,
-        exitReason,
-        orderData: {
-          tradingsymbol: trade.symbol,
-          exchange: 'NSE',
-          transaction_type: trade.side === OrderSide.BUY ? 'SELL' : 'BUY',
-          quantity: trade.quantity,
-          order_type: 'MARKET',
-          product: 'MIS',
-          validity: 'DAY',
+      await this.tradingQueue.add(
+        'close-trade',
+        {
+          tradeId: trade.id,
+          connectionId,
+          exitReason,
+          orderData: {
+            tradingsymbol: trade.symbol,
+            exchange: 'NSE',
+            transaction_type: trade.side === OrderSide.BUY ? 'SELL' : 'BUY',
+            quantity: trade.quantity,
+            order_type: 'MARKET',
+            product: 'MIS',
+            validity: 'DAY',
+          },
         },
-      });
+        {
+          ...this.queueJobOptions,
+          jobId: `close-trade:${trade.id}`,
+        },
+      );
 
       this.logger.log(`Trade close queued: ${trade.id}`);
       return trade;
