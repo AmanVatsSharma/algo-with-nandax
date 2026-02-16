@@ -23,6 +23,11 @@ export default function BacktestingPage() {
     entryThresholdPercent: '0.4',
     exitThresholdPercent: '0.2',
     feePerTrade: '0',
+    slippageBps: '0',
+    stopLossPercent: '0.6',
+    takeProfitPercent: '1.2',
+    walkForwardWindows: '1',
+    initialCapital: '0',
   });
 
   useEffect(() => {
@@ -61,6 +66,11 @@ export default function BacktestingPage() {
         entryThresholdPercent: Number(form.entryThresholdPercent),
         exitThresholdPercent: Number(form.exitThresholdPercent),
         feePerTrade: Number(form.feePerTrade),
+        slippageBps: Number(form.slippageBps),
+        stopLossPercent: Number(form.stopLossPercent),
+        takeProfitPercent: Number(form.takeProfitPercent),
+        walkForwardWindows: Number(form.walkForwardWindows),
+        initialCapital: Number(form.initialCapital),
       };
 
       console.log('run-backtesting-payload', payload);
@@ -192,6 +202,57 @@ export default function BacktestingPage() {
                 className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
               />
             </Field>
+            <Field label="Slippage (bps)">
+              <input
+                type="number"
+                min={0}
+                step="1"
+                value={form.slippageBps}
+                onChange={(event) => setForm({ ...form, slippageBps: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Stop loss %">
+              <input
+                type="number"
+                min={0.05}
+                step="0.05"
+                value={form.stopLossPercent}
+                onChange={(event) => setForm({ ...form, stopLossPercent: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Take profit %">
+              <input
+                type="number"
+                min={0.05}
+                step="0.05"
+                value={form.takeProfitPercent}
+                onChange={(event) => setForm({ ...form, takeProfitPercent: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Walk-forward windows">
+              <input
+                type="number"
+                min={1}
+                max={12}
+                step="1"
+                value={form.walkForwardWindows}
+                onChange={(event) => setForm({ ...form, walkForwardWindows: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Initial capital">
+              <input
+                type="number"
+                min={0}
+                step="1000"
+                value={form.initialCapital}
+                onChange={(event) => setForm({ ...form, initialCapital: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
           </div>
 
           <button
@@ -209,6 +270,12 @@ export default function BacktestingPage() {
               <h2 className="text-xl font-semibold mb-4">Summary</h2>
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
                 {JSON.stringify(result.summary, null, 2)}
+              </pre>
+            </div>
+            <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">
+              <h2 className="text-xl font-semibold mb-4">Walk-forward windows</h2>
+              <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                {JSON.stringify(result.windows ?? [], null, 2)}
               </pre>
             </div>
             <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">

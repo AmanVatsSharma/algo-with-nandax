@@ -130,6 +130,11 @@ export const backtestingApi = {
     entryThresholdPercent?: number;
     exitThresholdPercent?: number;
     feePerTrade?: number;
+    slippageBps?: number;
+    stopLossPercent?: number;
+    takeProfitPercent?: number;
+    walkForwardWindows?: number;
+    initialCapital?: number;
   }) => api.post('/backtesting/run', data),
 };
 
