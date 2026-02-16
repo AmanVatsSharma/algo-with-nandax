@@ -5,6 +5,7 @@ import { BrokerService } from './broker.service';
 import { BrokerController } from './broker.controller';
 import { KiteService } from './services/kite.service';
 import { BrokerConnection } from './entities/broker-connection.entity';
+import { TokenCryptoService } from '@/common/services/token-crypto.service';
 
 @Module({
   imports: [
@@ -12,7 +13,7 @@ import { BrokerConnection } from './entities/broker-connection.entity';
     HttpModule,
   ],
   controllers: [BrokerController],
-  providers: [BrokerService, KiteService],
-  exports: [BrokerService, KiteService],
+  providers: [BrokerService, KiteService, TokenCryptoService],
+  exports: [BrokerService, KiteService, TokenCryptoService],
 })
 export class BrokerModule {}

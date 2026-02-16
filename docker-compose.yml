@@ -57,6 +57,7 @@ services:
       JWT_EXPIRATION: 7d
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-this-in-production
       JWT_REFRESH_EXPIRATION: 30d
+      ENCRYPTION_KEY: your-strong-encryption-key-change-this-in-production
       FRONTEND_URL: http://localhost:3000
     ports:
       - '3001:3001'
