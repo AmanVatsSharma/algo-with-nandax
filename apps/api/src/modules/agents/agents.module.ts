@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bull';
+import { HttpModule } from '@nestjs/axios';
 import { AgentsService } from './agents.service';
 import { AgentsController } from './agents.controller';
 import { AgentExecutor } from './services/agent-executor.service';
@@ -18,6 +19,7 @@ import { RiskModule } from '../risk/risk.module';
     BullModule.registerQueue({
       name: 'agents',
     }),
+    HttpModule,
     StrategyModule,
     TradingModule,
     BrokerModule,

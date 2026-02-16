@@ -141,7 +141,7 @@ export class AgentExecutor {
   ): Promise<{ action: 'buy' | 'sell' | 'hold'; confidence: number; metadata?: any }> {
     this.logger.log(`Making AI decision for agent ${agentId}`);
 
-    const decision = this.aiDecisionService.decide({
+    const decision = await this.aiDecisionService.decide({
       agentId,
       marketData,
       strategyConfig,

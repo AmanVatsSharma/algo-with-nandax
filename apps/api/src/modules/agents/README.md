@@ -42,7 +42,19 @@ flowchart TD
   3. agent model name prefix (`provider:model`)
   4. fallback `heuristic`
 - Every decision now includes provider metadata for traceability.
+- Optional live provider inference is supported when:
+  - `aiLiveMode` is enabled in strategy/model config
+  - provider API key is configured in environment.
+- Live mode has retry + timeout and deterministic fallback on failures.
 
 ## Remaining limitation
 
-- External live LLM calls, latency-aware retries, and cost accounting are still pending.
+- Institutional-grade model governance/guardrails and centralized provider cost ledger are still pending.
+
+## AI runtime configuration
+
+- `AI_PROVIDER_TIMEOUT_MS` (default `4000`)
+- `OPENAI_API_KEY` (optional)
+- `OPENAI_ESTIMATED_COST_USD_PER_1K_TOKENS` (optional, default `0.002`)
+- `ANTHROPIC_API_KEY` (optional)
+- `ANTHROPIC_ESTIMATED_COST_USD_PER_1K_TOKENS` (optional, default `0.0025`)

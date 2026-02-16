@@ -1,14 +1,30 @@
 import { AIDecisionService } from './ai-decision.service';
+import { of } from 'rxjs';
 
 describe('AIDecisionService', () => {
+  const httpServiceMock = {
+    post: jest.fn(),
+  };
+
+  const configServiceMock = {
+    get: jest.fn(),
+  };
+
   let service: AIDecisionService;
 
   beforeEach(() => {
-    service = new AIDecisionService();
+    jest.clearAllMocks();
+    configServiceMock.get.mockImplementation((key: string, fallback?: string) => {
+      if (key === 'AI_PROVIDER_TIMEOUT_MS') {
+        return '4000';
+      }
+      return fallback;
+    });
+    service = new AIDecisionService(httpServiceMock as any, configServiceMock as any);
   });
 
-  it('uses openai provider when strategy requests it', () => {
-    const result = service.decide({
+  it('uses openai provider when strategy requests it', async () => {
+    const result = await service.decide({
       agentId: 'agent-1',
       strategyConfig: { aiProvider: 'openai' },
       marketData: {
@@ -25,8 +41,8 @@ describe('AIDecisionService', () => {
     expect(result.metadata.provider).toBe('openai');
   });
 
-  it('falls back to heuristic provider for unknown provider keys', () => {
-    const result = service.decide({
+  it('falls back to heuristic provider for unknown provider keys', async () => {
+    const result = await service.decide({
       agentId: 'agent-2',
       strategyConfig: { aiProvider: 'unknown-provider' },
       marketData: {
@@ -42,8 +58,8 @@ describe('AIDecisionService', () => {
     expect(result.metadata.provider).toBe('heuristic');
   });
 
-  it('returns hold decision when market data is missing', () => {
-    const result = service.decide({
+  it('returns hold decision when market data is missing', async () => {
+    const result = await service.decide({
       agentId: 'agent-3',
       strategyConfig: { aiProvider: 'anthropic' },
       marketData: { quotes: {} },
@@ -51,5 +67,80 @@ describe('AIDecisionService', () => {
 
     expect(result.action).toBe('hold');
     expect(result.metadata.provider).toBe('anthropic');
+  });
+
+  it('falls back to deterministic mode when live mode lacks api key', async () => {
+    configServiceMock.get.mockImplementation((key: string, fallback?: string) => {
+      if (key === 'AI_PROVIDER_TIMEOUT_MS') {
+        return '4000';
+      }
+      if (key === 'OPENAI_API_KEY') {
+        return '';
+      }
+      return fallback;
+    });
+    service = new AIDecisionService(httpServiceMock as any, configServiceMock as any);
+
+    const result = await service.decide({
+      agentId: 'agent-4',
+      strategyConfig: { aiProvider: 'openai', aiLiveMode: true },
+      marketData: {
+        quotes: {
+          'NSE:SBIN': {
+            last_price: 110,
+            ohlc: { open: 100, low: 99, high: 111 },
+          },
+        },
+      },
+    });
+
+    expect(result.metadata.mode).toBe('deterministic');
+    expect(httpServiceMock.post).not.toHaveBeenCalled();
+  });
+
+  it('uses live provider response when api key is configured', async () => {
+    configServiceMock.get.mockImplementation((key: string, fallback?: string) => {
+      if (key === 'AI_PROVIDER_TIMEOUT_MS') {
+        return '4000';
+      }
+      if (key === 'OPENAI_API_KEY') {
+        return 'test-openai-key';
+      }
+      if (key === 'OPENAI_ESTIMATED_COST_USD_PER_1K_TOKENS') {
+        return '0.002';
+      }
+      return fallback;
+    });
+    httpServiceMock.post.mockReturnValue(
+      of({
+        data: {
+          choices: [
+            {
+              message: {
+                content: '{"action":"buy","confidence":0.88,"reason":"breakout-confirmed"}',
+              },
+            },
+          ],
+        },
+      }),
+    );
+
+    service = new AIDecisionService(httpServiceMock as any, configServiceMock as any);
+    const result = await service.decide({
+      agentId: 'agent-5',
+      strategyConfig: { aiProvider: 'openai', aiLiveMode: true },
+      marketData: {
+        quotes: {
+          'NSE:SBIN': {
+            last_price: 110,
+            ohlc: { open: 100, low: 99, high: 111 },
+          },
+        },
+      },
+    });
+
+    expect(result.metadata.mode).toBe('live');
+    expect(result.action).toBe('buy');
+    expect(httpServiceMock.post).toHaveBeenCalledTimes(1);
   });
 });
