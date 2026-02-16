@@ -17,6 +17,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { Audit } from '../audit/decorators/audit.decorator';
+import { GetAIGovernanceSummaryDto } from './dto/get-ai-governance-summary.dto';
 
 @Controller('agents')
 @UseGuards(JwtAuthGuard)
@@ -36,6 +37,11 @@ export class AgentsController {
   @Get()
   async findAll(@Request() req) {
     return this.agentsService.findAll(req.user.userId);
+  }
+
+  @Get('governance/summary')
+  async getAIGovernanceSummary(@Request() req, @Query() query: GetAIGovernanceSummaryDto) {
+    return this.aiDecisionLogService.getGovernanceSummary(req.user.userId, query.days ?? 30);
   }
 
   @Get(':id')

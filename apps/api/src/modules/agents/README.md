@@ -49,6 +49,7 @@ flowchart TD
 - Every strategy cycle persists AI decision logs (`ai_decision_logs`) with provider/mode/model/action/confidence/tokens/cost metadata.
 - API endpoint for audit-style review:
   - `GET /api/v1/agents/:id/decision-logs?limit=100`
+  - `GET /api/v1/agents/governance/summary?days=30`
 
 ## Remaining limitation
 

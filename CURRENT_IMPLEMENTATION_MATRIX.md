@@ -74,6 +74,7 @@ This document reflects **actual code state** and intentionally separates shipped
 |---|---|---|
 | Missing dashboard route fixes | ✅ | settings / agents/new / strategies/new / accounts/[id] |
 | Agent decision log dashboard route | ✅ | `/dashboard/agents/[agentId]/decision-logs` |
+| AI governance summary dashboard route | ✅ | `/dashboard/agents/governance` |
 | Broker connect popup flow | ✅ | Callback + window message flow |
 | End-to-end polished strategy backtest UI | 📌 | Not shipped yet |
 | API backtesting engine (v1.5 deterministic+) | ✅ | `POST /backtesting/run` supports slippage, stop-loss/take-profit, walk-forward windows |
@@ -85,7 +86,7 @@ This document reflects **actual code state** and intentionally separates shipped
 
 | Capability | Status | Notes |
 |---|---|---|
-| Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted AI decision logs; centralized governance policies pending |
+| Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted decision logs + governance summary API; centralized policy engine pending |
 | Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + market-impact + portfolio + threshold/weight optimization baseline shipped; institutional microstructure optimizer pending |
 | Multi-tenant white-label | 📌 | Planned |
 | SSO/SAML enterprise auth | 📌 | Planned |

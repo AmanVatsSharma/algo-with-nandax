@@ -247,7 +247,7 @@ export default function DashboardPage() {
         {activeView === 'overview' && (
           <div className="space-y-8">
             {/* Quick Actions */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
               <QuickActionCard
                 title="Deploy AI Agent"
                 description="Launch intelligent trading agents"
@@ -283,6 +283,13 @@ export default function DashboardPage() {
                 href="/dashboard/risk"
                 color="amber"
               />
+              <QuickActionCard
+                title="AI Governance"
+                description="Inspect provider cost and model behavior"
+                icon={<BarChart3 className="w-8 h-8" />}
+                href="/dashboard/agents/governance"
+                color="purple"
+              />
             </div>
 
             {/* Recent Activity */}
@@ -295,18 +302,27 @@ export default function DashboardPage() {
 
         {activeView === 'agents' && (
           <div className="space-y-6">
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex justify-between items-center mb-6 gap-3 flex-wrap">
               <h2 className="text-2xl font-bold text-white flex items-center space-x-3">
                 <Sparkles className="w-6 h-6 text-blue-400" />
                 <span>AI Trading Agents</span>
               </h2>
-              <Link
-                href="/dashboard/agents/new"
-                className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg shadow-blue-500/50 hover:shadow-blue-500/70 transform hover:scale-105"
-              >
-                <Plus className="w-5 h-5" />
-                <span className="font-semibold">Deploy New Agent</span>
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/dashboard/agents/governance"
+                  className="flex items-center space-x-2 px-5 py-3 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-lg hover:from-violet-600 hover:to-fuchsia-600 transition-all duration-300 shadow-lg shadow-violet-500/40 hover:shadow-violet-500/60 transform hover:scale-105"
+                >
+                  <BarChart3 className="w-5 h-5" />
+                  <span className="font-semibold">Governance</span>
+                </Link>
+                <Link
+                  href="/dashboard/agents/new"
+                  className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-lg hover:from-blue-600 hover:to-cyan-600 transition-all duration-300 shadow-lg shadow-blue-500/50 hover:shadow-blue-500/70 transform hover:scale-105"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="font-semibold">Deploy New Agent</span>
+                </Link>
+              </div>
             </div>
 
             {agents.length === 0 ? (

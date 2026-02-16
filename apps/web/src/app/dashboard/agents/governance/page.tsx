@@ -1,0 +1,155 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { ArrowLeft, ShieldCheck } from 'lucide-react';
+import { agentsApi } from '@/lib/api';
+
+export default function AIGovernancePage() {
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [summary, setSummary] = useState<any>(null);
+  const [days, setDays] = useState('30');
+
+  const fetchSummary = async () => {
+    setLoading(true);
+    setErrorMessage('');
+    try {
+      const response = await agentsApi.getGovernanceSummary(Number(days));
+      console.log('ai-governance-summary-fetch-result', {
+        days: Number(days),
+        totalDecisions: response.data?.totals?.totalDecisions ?? 0,
+      });
+      setSummary(response.data);
+    } catch (error: any) {
+      console.error('ai-governance-summary-fetch-error', error);
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to load AI governance summary');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSummary();
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-white">
+      <div className="max-w-6xl mx-auto px-6 py-10">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center space-x-2 text-blue-300 hover:text-blue-200 mb-6"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to dashboard</span>
+        </Link>
+
+        <div className="flex items-center space-x-3 mb-8">
+          <ShieldCheck className="w-8 h-8 text-emerald-400" />
+          <div>
+            <h1 className="text-3xl font-bold">AI Governance Summary</h1>
+            <p className="text-slate-400">Monitor AI decision cost, confidence, and provider usage.</p>
+          </div>
+        </div>
+
+        {errorMessage && (
+          <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-red-300">
+            {errorMessage}
+          </div>
+        )}
+
+        <div className="mb-4 flex items-end gap-3">
+          <label className="block">
+            <p className="mb-2 text-sm text-slate-300">Lookback days</p>
+            <input
+              type="number"
+              min={1}
+              max={365}
+              value={days}
+              onChange={(event) => setDays(event.target.value)}
+              className="w-32 rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={fetchSummary}
+            disabled={loading}
+            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 transition px-4 py-2 font-semibold disabled:opacity-50"
+          >
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
+
+        <div className="rounded-xl border border-emerald-500/20 bg-slate-900/60 p-6">
+          {loading ? (
+            <p className="text-slate-400">Loading governance summary...</p>
+          ) : summary ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <MetricCard
+                  label="Total decisions"
+                  value={String(summary.totals?.totalDecisions ?? 0)}
+                />
+                <MetricCard
+                  label="Total cost (USD)"
+                  value={`$${Number(summary.totals?.totalCostUsd ?? 0).toFixed(6)}`}
+                />
+                <MetricCard
+                  label="Total tokens"
+                  value={String(summary.totals?.totalTokens ?? 0)}
+                />
+                <MetricCard
+                  label="Average confidence"
+                  value={Number(summary.totals?.avgConfidence ?? 0).toFixed(3)}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <StatBlock title="Provider stats" data={summary.providerStats ?? []} />
+                <StatBlock title="Mode stats" data={summary.modeStats ?? []} />
+                <StatBlock title="Action breakdown" data={summary.actionBreakdown ?? []} />
+              </div>
+
+              <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                {JSON.stringify(summary, null, 2)}
+              </pre>
+            </div>
+          ) : (
+            <p className="text-slate-400">No governance summary available.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-800 p-3">
+      <p className="text-xs uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-lg font-semibold mt-1">{value}</p>
+    </div>
+  );
+}
+
+function StatBlock({ title, data }: { title: string; data: any[] }) {
+  return (
+    <div className="rounded-lg border border-slate-700 bg-slate-800 p-4">
+      <p className="text-sm font-semibold mb-2">{title}</p>
+      {data.length === 0 ? (
+        <p className="text-xs text-slate-400">No data</p>
+      ) : (
+        <div className="space-y-2 text-xs">
+          {data.map((item) => (
+            <div key={item.key} className="flex items-center justify-between">
+              <span className="text-slate-300">{item.key}</span>
+              <span className="text-slate-100">
+                {item.count} | ${Number(item.totalCostUsd ?? 0).toFixed(6)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

@@ -37,4 +37,44 @@ describe('AIDecisionLogService', () => {
       }),
     );
   });
+
+  it('returns governance summary aggregated by provider and mode', async () => {
+    repositoryMock.find.mockResolvedValue([
+      {
+        provider: 'openai',
+        mode: 'live',
+        action: 'buy',
+        confidence: 0.8,
+        estimatedTokens: 100,
+        estimatedCostUsd: 0.002,
+        createdAt: new Date('2026-02-10T10:00:00.000Z'),
+      },
+      {
+        provider: 'openai',
+        mode: 'deterministic',
+        action: 'hold',
+        confidence: 0.6,
+        estimatedTokens: 0,
+        estimatedCostUsd: 0,
+        createdAt: new Date('2026-02-10T11:00:00.000Z'),
+      },
+      {
+        provider: 'anthropic',
+        mode: 'live',
+        action: 'sell',
+        confidence: 0.7,
+        estimatedTokens: 90,
+        estimatedCostUsd: 0.003,
+        createdAt: new Date('2026-02-11T10:00:00.000Z'),
+      },
+    ]);
+
+    const summary = await service.getGovernanceSummary('user-1', 30);
+
+    expect(summary.totals.totalDecisions).toBe(3);
+    expect(summary.totals.totalCostUsd).toBeCloseTo(0.005, 6);
+    expect(summary.providerStats[0].key).toBe('openai');
+    expect(summary.modeStats.some((item: any) => item.key === 'live')).toBe(true);
+    expect(summary.dailyCosts.length).toBe(2);
+  });
 });
