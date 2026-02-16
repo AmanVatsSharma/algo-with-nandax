@@ -46,6 +46,20 @@ export class TradingProcessor {
       }
 
       const mappedOrderStatus = this.mapKiteOrderStatus(latestOrderState.status);
+      if (this.isKitePartiallyFilled(latestOrderState)) {
+        await this.tradingService.markEntryOrderPartiallyFilled(tradeId, {
+          orderId: orderResult.order_id,
+          averagePrice: Number(latestOrderState.average_price || 0),
+          filledQuantity: Number(latestOrderState.filled_quantity || 0),
+          pendingQuantity: Number(latestOrderState.pending_quantity || 0),
+          statusMessage: latestOrderState.status_message,
+        });
+
+        this.logger.warn(
+          `Entry order ${orderResult.order_id} partially filled for trade ${tradeId}. filled=${latestOrderState.filled_quantity} pending=${latestOrderState.pending_quantity}`,
+        );
+        return { success: true, orderId: orderResult.order_id, status: OrderStatus.PARTIALLY_FILLED };
+      }
 
       if (mappedOrderStatus === OrderStatus.EXECUTED) {
         const executedPrice =
@@ -129,6 +143,21 @@ export class TradingProcessor {
       }
 
       const mappedOrderStatus = this.mapKiteOrderStatus(latestOrderState.status);
+      if (this.isKitePartiallyFilled(latestOrderState)) {
+        await this.tradingService.markExitOrderPartiallyFilled(tradeId, {
+          orderId: orderResult.order_id,
+          averagePrice: Number(latestOrderState.average_price || 0),
+          filledQuantity: Number(latestOrderState.filled_quantity || 0),
+          pendingQuantity: Number(latestOrderState.pending_quantity || 0),
+          statusMessage: latestOrderState.status_message,
+          exitReason,
+        });
+
+        this.logger.warn(
+          `Exit order ${orderResult.order_id} partially filled for trade ${tradeId}. filled=${latestOrderState.filled_quantity} pending=${latestOrderState.pending_quantity}`,
+        );
+        return { success: true, orderId: orderResult.order_id, status: OrderStatus.PARTIALLY_FILLED };
+      }
 
       if (mappedOrderStatus === OrderStatus.EXECUTED) {
         const executedPrice =
@@ -209,5 +238,17 @@ export class TradingProcessor {
       );
       return null;
     }
+  }
+
+  private isKitePartiallyFilled(orderState: KiteOrderHistoryEntry): boolean {
+    const status = String(orderState?.status ?? '').toUpperCase();
+    const filledQuantity = Number(orderState?.filled_quantity ?? 0);
+    const pendingQuantity = Number(orderState?.pending_quantity ?? 0);
+
+    return (
+      (status === 'OPEN' || status === 'TRIGGER PENDING') &&
+      filledQuantity > 0 &&
+      pendingQuantity > 0
+    );
   }
 }

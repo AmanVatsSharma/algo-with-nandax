@@ -51,6 +51,7 @@ describe('TradingReconciliationScheduler', () => {
     tradingServiceMock.reconcileTrades.mockResolvedValue({
       processed: 1,
       executed: 1,
+      partiallyFilled: 0,
       rejected: 0,
       cancelled: 0,
       open: 0,

@@ -121,6 +121,42 @@ export class TradingService {
     return this.findById(tradeId);
   }
 
+  async markEntryOrderPartiallyFilled(
+    tradeId: string,
+    payload: {
+      orderId: string;
+      averagePrice?: number;
+      filledQuantity: number;
+      pendingQuantity: number;
+      statusMessage?: string;
+    },
+  ): Promise<Trade> {
+    const trade = await this.findById(tradeId);
+    const mergedMetadata = {
+      ...(trade.metadata ?? {}),
+      entryFillState: {
+        orderId: payload.orderId,
+        filledQuantity: payload.filledQuantity,
+        pendingQuantity: payload.pendingQuantity,
+        averagePrice: payload.averagePrice ?? null,
+        statusMessage: payload.statusMessage ?? null,
+        syncedAt: new Date().toISOString(),
+      },
+    };
+
+    await this.tradeRepository.update(tradeId, {
+      entryOrderId: payload.orderId,
+      orderStatus: OrderStatus.PARTIALLY_FILLED,
+      executedEntryPrice:
+        payload.averagePrice && payload.averagePrice > 0
+          ? payload.averagePrice
+          : trade.executedEntryPrice,
+      orderError: payload.statusMessage,
+      metadata: mergedMetadata as unknown as Record<string, any>,
+    });
+    return this.findById(tradeId);
+  }
+
   async updateExitExecution(
     tradeId: string,
     executedPrice: number,
@@ -154,6 +190,44 @@ export class TradingService {
       exitOrderId: orderId,
       orderStatus: OrderStatus.PLACED,
       exitReason,
+    });
+    return this.findById(tradeId);
+  }
+
+  async markExitOrderPartiallyFilled(
+    tradeId: string,
+    payload: {
+      orderId: string;
+      averagePrice?: number;
+      filledQuantity: number;
+      pendingQuantity: number;
+      statusMessage?: string;
+      exitReason?: string;
+    },
+  ): Promise<Trade> {
+    const trade = await this.findById(tradeId);
+    const mergedMetadata = {
+      ...(trade.metadata ?? {}),
+      exitFillState: {
+        orderId: payload.orderId,
+        filledQuantity: payload.filledQuantity,
+        pendingQuantity: payload.pendingQuantity,
+        averagePrice: payload.averagePrice ?? null,
+        statusMessage: payload.statusMessage ?? null,
+        syncedAt: new Date().toISOString(),
+      },
+    };
+
+    await this.tradeRepository.update(tradeId, {
+      exitOrderId: payload.orderId,
+      orderStatus: OrderStatus.PARTIALLY_FILLED,
+      executedExitPrice:
+        payload.averagePrice && payload.averagePrice > 0
+          ? payload.averagePrice
+          : trade.executedExitPrice,
+      orderError: payload.statusMessage,
+      exitReason: payload.exitReason ?? trade.exitReason,
+      metadata: mergedMetadata as unknown as Record<string, any>,
     });
     return this.findById(tradeId);
   }
@@ -252,6 +326,7 @@ export class TradingService {
     const result = {
       processed: 0,
       executed: 0,
+      partiallyFilled: 0,
       rejected: 0,
       cancelled: 0,
       open: 0,
@@ -280,11 +355,48 @@ export class TradingService {
           orderId,
         );
         const status = String(latestState?.status ?? '').toLowerCase();
+        const filledQuantity = Number(latestState?.filled_quantity ?? 0);
+        const pendingQuantity = Number(latestState?.pending_quantity ?? 0);
         const averagePrice = Number(latestState?.average_price ?? 0);
         const resolvedPrice = Number.isFinite(averagePrice) && averagePrice > 0
           ? averagePrice
           : Number(isExitOrderPending ? trade.executedExitPrice ?? trade.exitPrice ?? trade.entryPrice : trade.executedEntryPrice ?? trade.entryPrice);
         const statusMessage = latestState?.status_message ?? undefined;
+
+        if (
+          (status === 'open' || status === 'trigger pending') &&
+          filledQuantity > 0 &&
+          pendingQuantity > 0
+        ) {
+          if (isExitOrderPending) {
+            await this.markExitOrderPartiallyFilled(trade.id, {
+              orderId,
+              averagePrice: resolvedPrice,
+              filledQuantity,
+              pendingQuantity,
+              statusMessage,
+              exitReason: trade.exitReason,
+            });
+          } else {
+            await this.markEntryOrderPartiallyFilled(trade.id, {
+              orderId,
+              averagePrice: resolvedPrice,
+              filledQuantity,
+              pendingQuantity,
+              statusMessage,
+            });
+          }
+          result.partiallyFilled += 1;
+          result.details.push({
+            tradeId: trade.id,
+            status: 'partially_filled',
+            orderId,
+            filledQuantity,
+            pendingQuantity,
+          });
+          result.processed += 1;
+          continue;
+        }
 
         if (status === 'complete') {
           if (isExitOrderPending) {

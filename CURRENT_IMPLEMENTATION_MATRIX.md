@@ -55,7 +55,7 @@ This document reflects **actual code state** and intentionally separates shipped
 | Agent uses live quotes | ✅ | Uses broker quote API instead of static placeholder |
 | Guardrails max positions/day trades | ✅ | Enforced in agent processor |
 | Daily PnL guardrails (`maxDailyLoss`/`maxDailyProfit`) | ✅ | Strategy config-aware |
-| Fill reconciliation from tradebook | 🚧 | Added on-demand `/trades/reconcile` + minute-level auto reconciliation worker; true tradebook stream sync pending |
+| Fill reconciliation from tradebook | 🚧 | Added on-demand `/trades/reconcile` + minute-level auto reconciliation worker + partial-fill persistence; true tradebook stream sync pending |
 | Risk module (v1 kill-switch + risk limits + alerts) | ✅ | Profile APIs + execution integration + auto kill-switch scheduler shipped |
 | Advanced risk analytics (VaR/correlation/stress testing) | 🚧 | VaR + expected shortfall + drawdown + correlation + stress scenarios shipped; institutional stress suite pending |
 

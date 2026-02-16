@@ -21,6 +21,7 @@ Trading module handles trade lifecycle APIs, queued broker execution, and order 
    - Queue processor does latest-order-state reconciliation right after placement.
    - API endpoint `POST /trades/reconcile` allows manual reconciliation for pending orders.
    - Scheduled reconciliation worker runs every minute for pending broker orders.
+   - Partial fills are detected and persisted as `partially_filled` with fill-state metadata.
 
 ## Execution flow (simplified)
 

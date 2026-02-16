@@ -8,6 +8,7 @@ interface ReconciliationSummary {
   scanned: number;
   processed: number;
   executed: number;
+  partiallyFilled: number;
   rejected: number;
   cancelled: number;
   open: number;
@@ -44,6 +45,7 @@ export class TradingReconciliationScheduler {
       scanned: 0,
       processed: 0,
       executed: 0,
+      partiallyFilled: 0,
       rejected: 0,
       cancelled: 0,
       open: 0,
@@ -72,6 +74,7 @@ export class TradingReconciliationScheduler {
 
         summary.processed += result.processed;
         summary.executed += result.executed;
+        summary.partiallyFilled += result.partiallyFilled ?? 0;
         summary.rejected += result.rejected;
         summary.cancelled += result.cancelled;
         summary.open += result.open;
@@ -85,7 +88,7 @@ export class TradingReconciliationScheduler {
     }
 
     this.logger.log(
-      `Auto reconciliation cycle completed scanned=${summary.scanned} processed=${summary.processed} executed=${summary.executed} rejected=${summary.rejected} cancelled=${summary.cancelled} open=${summary.open} failed=${summary.failed}`,
+      `Auto reconciliation cycle completed scanned=${summary.scanned} processed=${summary.processed} executed=${summary.executed} partiallyFilled=${summary.partiallyFilled} rejected=${summary.rejected} cancelled=${summary.cancelled} open=${summary.open} failed=${summary.failed}`,
     );
   }
 

@@ -22,4 +22,13 @@ describe('TradingProcessor order status mapping', () => {
     const status = (processor as any).mapKiteOrderStatus('OPEN');
     expect(status).toBe(OrderStatus.PLACED);
   });
+
+  it('detects partial fill from open order state', () => {
+    const partial = (processor as any).isKitePartiallyFilled({
+      status: 'OPEN',
+      filled_quantity: 3,
+      pending_quantity: 7,
+    });
+    expect(partial).toBe(true);
+  });
 });
