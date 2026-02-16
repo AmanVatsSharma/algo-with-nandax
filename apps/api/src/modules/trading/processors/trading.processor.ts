@@ -4,6 +4,7 @@ import { Job } from 'bull';
 import { TradingService } from '../trading.service';
 import { BrokerService } from '@/modules/broker/broker.service';
 import { OrderStatus } from '../entities/trade.entity';
+import { getErrorMessage } from '@/common/utils/error.utils';
 
 @Processor('trading')
 export class TradingProcessor {
@@ -39,7 +40,7 @@ export class TradingProcessor {
       await this.tradingService.updateOrderStatus(
         tradeId,
         OrderStatus.FAILED,
-        error.message,
+        getErrorMessage(error, 'Failed to place order'),
       );
 
       throw error;
@@ -71,7 +72,7 @@ export class TradingProcessor {
       await this.tradingService.updateOrderStatus(
         tradeId,
         OrderStatus.FAILED,
-        error.message,
+        getErrorMessage(error, 'Failed to close trade'),
       );
 
       throw error;

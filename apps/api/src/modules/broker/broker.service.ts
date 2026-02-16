@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BrokerConnection, BrokerType, ConnectionStatus } from './entities/broker-connection.entity';
 import { KiteService } from './services/kite.service';
+import { getErrorMessage } from '@/common/utils/error.utils';
 
 @Injectable()
 export class BrokerService {
@@ -72,7 +73,7 @@ export class BrokerService {
             connectionId: connection.id,
             brokerType: connection.brokerType,
             status: ConnectionStatus.ERROR,
-            error: error.message,
+            error: getErrorMessage(error, 'Failed to fetch account snapshot'),
           };
         }
       }),

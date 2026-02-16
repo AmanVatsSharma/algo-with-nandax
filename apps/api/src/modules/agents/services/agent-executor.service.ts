@@ -4,6 +4,7 @@ import { Queue } from 'bull';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AgentsService } from '../agents.service';
 import { AgentStatus, AgentType } from '../entities/agent.entity';
+import { getErrorMessage } from '@/common/utils/error.utils';
 
 @Injectable()
 export class AgentExecutor {
@@ -23,7 +24,7 @@ export class AgentExecutor {
       this.logger.log(`Agent ${agentId} started`);
     } catch (error) {
       this.logger.error(`Error starting agent ${agentId}`, error);
-      await this.agentsService.setError(agentId, error.message);
+      await this.agentsService.setError(agentId, getErrorMessage(error, 'Failed to start agent'));
       throw error;
     }
   }
@@ -77,7 +78,7 @@ export class AgentExecutor {
       this.logger.log(`Agent ${agentId} execution queued`);
     } catch (error) {
       this.logger.error(`Error executing agent ${agentId}`, error);
-      await this.agentsService.setError(agentId, error.message);
+      await this.agentsService.setError(agentId, getErrorMessage(error, 'Failed to execute agent'));
     }
   }
 

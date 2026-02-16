@@ -8,6 +8,7 @@ import { TradeExecutor } from '@/modules/trading/services/trade-executor.service
 import { StrategyService } from '@/modules/strategy/strategy.service';
 import { AgentType } from '../entities/agent.entity';
 import { OrderSide, OrderType } from '@/modules/trading/entities/trade.entity';
+import { getErrorMessage } from '@/common/utils/error.utils';
 
 @Processor('agents')
 export class AgentProcessor {
@@ -72,7 +73,10 @@ export class AgentProcessor {
       return { success: true, decision };
     } catch (error) {
       this.logger.error(`Error executing strategy for agent ${agentId}`, error);
-      await this.agentsService.setError(agentId, error.message);
+      await this.agentsService.setError(
+        agentId,
+        getErrorMessage(error, 'Failed to execute strategy'),
+      );
       throw error;
     }
   }
