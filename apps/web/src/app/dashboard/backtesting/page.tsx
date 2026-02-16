@@ -18,6 +18,9 @@ export default function BacktestingPage() {
     instrumentToken: '',
     portfolioTokensCsv: '',
     portfolioWeightsCsv: '',
+    entryCandidatesCsv: '0.2,0.3,0.4,0.5',
+    exitCandidatesCsv: '0.15,0.2,0.25,0.3',
+    topN: '5',
     interval: '5minute',
     fromDate: '',
     toDate: '',
@@ -138,6 +141,55 @@ export default function BacktestingPage() {
     }
   };
 
+  const runOptimization = async () => {
+    setRunning(true);
+    setResult(null);
+    setErrorMessage('');
+
+    try {
+      if (!form.instrumentToken) {
+        setErrorMessage('Instrument token is required for optimization');
+        return;
+      }
+
+      const entryThresholdCandidates = form.entryCandidatesCsv
+        .split(',')
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value) && value > 0);
+      const exitThresholdCandidates = form.exitCandidatesCsv
+        .split(',')
+        .map((value) => Number(value.trim()))
+        .filter((value) => Number.isFinite(value) && value > 0);
+
+      const payload = {
+        connectionId: form.connectionId,
+        instrumentToken: form.instrumentToken,
+        interval: form.interval,
+        fromDate: form.fromDate,
+        toDate: form.toDate,
+        quantity: Number(form.quantity),
+        feePerTrade: Number(form.feePerTrade),
+        slippageBps: Number(form.slippageBps),
+        stopLossPercent: Number(form.stopLossPercent),
+        takeProfitPercent: Number(form.takeProfitPercent),
+        walkForwardWindows: Number(form.walkForwardWindows),
+        initialCapital: Number(form.initialCapital),
+        entryThresholdCandidates,
+        exitThresholdCandidates,
+        topN: Number(form.topN),
+      };
+
+      console.log('run-backtesting-optimization-payload', payload);
+      const response = await backtestingApi.optimize(payload);
+      setResult(response.data);
+    } catch (error: any) {
+      console.error('run-backtesting-optimization-error', error);
+      setErrorMessage(error?.response?.data?.message ?? 'Failed to optimize backtest');
+    } finally {
+      setRunning(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-950 text-white">
       <div className="max-w-5xl mx-auto px-6 py-10">
@@ -242,6 +294,22 @@ export default function BacktestingPage() {
                 placeholder="50,30,20"
               />
             </Field>
+            <Field label="Optimization entry thresholds (comma-separated)">
+              <input
+                value={form.entryCandidatesCsv}
+                onChange={(event) => setForm({ ...form, entryCandidatesCsv: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+                placeholder="0.2,0.3,0.4,0.5"
+              />
+            </Field>
+            <Field label="Optimization exit thresholds (comma-separated)">
+              <input
+                value={form.exitCandidatesCsv}
+                onChange={(event) => setForm({ ...form, exitCandidatesCsv: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+                placeholder="0.15,0.2,0.25,0.3"
+              />
+            </Field>
             <Field label="Entry threshold %">
               <input
                 type="number"
@@ -323,6 +391,16 @@ export default function BacktestingPage() {
                 className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
               />
             </Field>
+            <Field label="Optimization top N">
+              <input
+                type="number"
+                min={1}
+                max={30}
+                value={form.topN}
+                onChange={(event) => setForm({ ...form, topN: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
           </div>
 
           <button
@@ -339,6 +417,14 @@ export default function BacktestingPage() {
             className="w-full rounded-lg bg-emerald-600 hover:bg-emerald-700 transition px-4 py-3 font-semibold disabled:opacity-50"
           >
             {running ? 'Running portfolio backtest...' : 'Run portfolio backtest'}
+          </button>
+          <button
+            type="button"
+            disabled={running}
+            onClick={runOptimization}
+            className="w-full rounded-lg bg-violet-600 hover:bg-violet-700 transition px-4 py-3 font-semibold disabled:opacity-50"
+          >
+            {running ? 'Optimizing...' : 'Optimize thresholds'}
           </button>
         </form>
 
@@ -360,6 +446,12 @@ export default function BacktestingPage() {
               <h2 className="text-xl font-semibold mb-4">Portfolio instruments</h2>
               <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
                 {JSON.stringify(result.instruments ?? [], null, 2)}
+              </pre>
+            </div>
+            <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">
+              <h2 className="text-xl font-semibold mb-4">Optimization top strategies</h2>
+              <pre className="text-xs overflow-auto bg-slate-800 rounded-lg p-4 border border-slate-700">
+                {JSON.stringify(result.topStrategies ?? [], null, 2)}
               </pre>
             </div>
             <div className="rounded-xl border border-cyan-500/20 bg-slate-900/60 p-6">

@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { BrokerService } from '../broker/broker.service';
 import { RunBacktestDto } from './dto/run-backtest.dto';
 import { RunPortfolioBacktestDto } from './dto/run-portfolio-backtest.dto';
+import { OptimizeBacktestDto } from './dto/optimize-backtest.dto';
 
 interface Candle {
   timestamp: string;
@@ -166,6 +167,77 @@ export class BacktestingService {
       instruments: instrumentSummaries,
       trades: sortedTrades,
       equityCurve,
+    };
+  }
+
+  async optimizeBacktest(userId: string, dto: OptimizeBacktestDto) {
+    const historicalData = await this.brokerService.getKiteHistoricalData(
+      userId,
+      dto.connectionId,
+      dto.instrumentToken,
+      dto.interval,
+      dto.fromDate,
+      dto.toDate,
+    );
+    const candles = this.normalizeCandles(historicalData?.candles ?? []);
+    const entryCandidates = this.normalizeThresholdCandidates(
+      dto.entryThresholdCandidates,
+      [0.2, 0.3, 0.4, 0.5, 0.6],
+    );
+    const exitCandidates = this.normalizeThresholdCandidates(
+      dto.exitThresholdCandidates,
+      [0.15, 0.2, 0.25, 0.3, 0.35],
+    );
+    const topN = Math.min(Math.max(dto.topN ?? 5, 1), 30);
+
+    const combinations: Array<Record<string, unknown>> = [];
+    for (const entryThresholdPercent of entryCandidates) {
+      for (const exitThresholdPercent of exitCandidates) {
+        const result = this.simulateStrategy(candles, {
+          connectionId: dto.connectionId,
+          instrumentToken: dto.instrumentToken,
+          interval: dto.interval,
+          fromDate: dto.fromDate,
+          toDate: dto.toDate,
+          quantity: dto.quantity,
+          feePerTrade: dto.feePerTrade,
+          slippageBps: dto.slippageBps,
+          stopLossPercent: dto.stopLossPercent,
+          takeProfitPercent: dto.takeProfitPercent,
+          walkForwardWindows: dto.walkForwardWindows,
+          initialCapital: dto.initialCapital,
+          entryThresholdPercent,
+          exitThresholdPercent,
+        });
+
+        const score = Number(result.summary.totalPnL ?? 0) - Number(result.summary.maxDrawdown ?? 0) * 0.15;
+        combinations.push({
+          entryThresholdPercent,
+          exitThresholdPercent,
+          score,
+          summary: result.summary,
+        });
+      }
+    }
+
+    const ranked = combinations.sort(
+      (left, right) => Number(right.score) - Number(left.score),
+    );
+    const topStrategies = ranked.slice(0, topN);
+
+    return {
+      evaluatedCombinations: combinations.length,
+      topStrategies,
+      bestStrategy: topStrategies[0] ?? null,
+      configUsed: {
+        instrumentToken: dto.instrumentToken,
+        interval: dto.interval,
+        fromDate: dto.fromDate,
+        toDate: dto.toDate,
+        topN,
+        entryCandidates,
+        exitCandidates,
+      },
     };
   }
 
@@ -491,5 +563,23 @@ export class BacktestingService {
       maxDrawdown = Math.max(maxDrawdown, peakEquity - point.equity);
     }
     return maxDrawdown;
+  }
+
+  private normalizeThresholdCandidates(
+    values: number[] | undefined,
+    fallback: number[],
+  ): number[] {
+    if (!values?.length) {
+      return fallback;
+    }
+    const normalized = values
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value) && value > 0)
+      .map((value) => Number(value.toFixed(4)));
+    if (!normalized.length) {
+      return fallback;
+    }
+
+    return Array.from(new Set(normalized)).sort((left, right) => left - right);
   }
 }

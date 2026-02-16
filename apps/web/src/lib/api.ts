@@ -155,6 +155,23 @@ export const backtestingApi = {
     walkForwardWindows?: number;
     initialCapital?: number;
   }) => api.post('/backtesting/run-portfolio', data),
+  optimize: (data: {
+    connectionId: string;
+    instrumentToken: string;
+    interval: string;
+    fromDate: string;
+    toDate: string;
+    quantity?: number;
+    feePerTrade?: number;
+    slippageBps?: number;
+    stopLossPercent?: number;
+    takeProfitPercent?: number;
+    walkForwardWindows?: number;
+    initialCapital?: number;
+    entryThresholdCandidates?: number[];
+    exitThresholdCandidates?: number[];
+    topN?: number;
+  }) => api.post('/backtesting/optimize', data),
 };
 
 export const riskApi = {

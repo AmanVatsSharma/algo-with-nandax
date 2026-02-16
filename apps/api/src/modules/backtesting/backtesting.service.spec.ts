@@ -109,4 +109,32 @@ describe('BacktestingService', () => {
     expect(Array.isArray(result.trades)).toBe(true);
     expect(brokerServiceMock.getKiteHistoricalData).toHaveBeenCalledTimes(2);
   });
+
+  it('optimizes thresholds and returns ranked strategies', async () => {
+    brokerServiceMock.getKiteHistoricalData.mockResolvedValue({
+      candles: [
+        ['2026-01-01T09:15:00+0530', 100, 101, 99, 100, 1000],
+        ['2026-01-01T09:20:00+0530', 100, 103, 99, 102, 1200],
+        ['2026-01-01T09:25:00+0530', 102, 104, 101, 103, 900],
+        ['2026-01-01T09:30:00+0530', 103, 105, 100, 101, 1500],
+        ['2026-01-01T09:35:00+0530', 101, 102, 99, 100, 1100],
+      ],
+    });
+
+    const result = await service.optimizeBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentToken: '12345',
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      entryThresholdCandidates: [0.2, 0.4],
+      exitThresholdCandidates: [0.15, 0.25],
+      topN: 2,
+    });
+
+    expect(result.evaluatedCombinations).toBe(4);
+    expect(Array.isArray(result.topStrategies)).toBe(true);
+    expect(result.topStrategies.length).toBe(2);
+    expect(result.bestStrategy).not.toBeNull();
+  });
 });
