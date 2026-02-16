@@ -20,6 +20,7 @@ Trading module handles trade lifecycle APIs, queued broker execution, and order 
 5. **Order reconciliation**
    - Queue processor does latest-order-state reconciliation right after placement.
    - API endpoint `POST /trades/reconcile` allows manual reconciliation for pending orders.
+   - Scheduled reconciliation worker runs every minute for pending broker orders.
 
 ## Execution flow (simplified)
 
@@ -32,6 +33,7 @@ flowchart TD
   E --> F[BrokerService place order with trade.userId]
   F --> G[Immediate latest-order reconciliation]
   H[Manual reconcile API] --> I[Recheck pending orders]
+  J[Cron reconciliation worker] --> I
   I --> G
 ```
 
@@ -40,3 +42,8 @@ flowchart TD
 - Continuous tradebook stream reconciliation for partial fills and multi-fill averaging
 - Exchange/session-aware re-reconciliation scheduling
 - Side-aware realized/unrealized P&L consistency checks for complex exits
+
+## Reconciliation scheduler configuration
+
+- `TRADING_AUTO_RECONCILIATION_ENABLED` (default: `true`)
+- `TRADING_AUTO_RECONCILIATION_BATCH_SIZE` (default: `100`, min: 1, max: 500)

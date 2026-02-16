@@ -58,6 +58,8 @@ services:
       JWT_REFRESH_SECRET: your-super-secret-refresh-key-change-this-in-production
       JWT_REFRESH_EXPIRATION: 30d
       ENCRYPTION_KEY: your-strong-encryption-key-change-this-in-production
+      TRADING_AUTO_RECONCILIATION_ENABLED: true
+      TRADING_AUTO_RECONCILIATION_BATCH_SIZE: 100
       FRONTEND_URL: http://localhost:3000
     ports:
       - '3001:3001'

@@ -1,11 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository, Between, In, FindOptionsWhere } from 'typeorm';
 import { Trade, TradeStatus, OrderStatus, OrderSide } from './entities/trade.entity';
 import { BrokerService } from '../broker/broker.service';
 import { getErrorMessage } from '@/common/utils/error.utils';
 
-const PENDING_RECONCILIATION_STATUSES: OrderStatus[] = [OrderStatus.PLACED];
+const PENDING_RECONCILIATION_STATUSES: OrderStatus[] = [
+  OrderStatus.PLACED,
+  OrderStatus.PARTIALLY_FILLED,
+];
 
 @Injectable()
 export class TradingService {
@@ -200,6 +203,30 @@ export class TradingService {
     };
   }
 
+  async findPendingTradesForReconciliation(
+    maxItems: number = 100,
+  ): Promise<Array<Pick<Trade, 'id' | 'userId' | 'connectionId'>>> {
+    const safeMaxItems = Math.min(Math.max(maxItems, 1), 500);
+    const trades = await this.tradeRepository.find({
+      select: {
+        id: true,
+        userId: true,
+        connectionId: true,
+      },
+      where: {
+        orderStatus: In(PENDING_RECONCILIATION_STATUSES),
+      },
+      order: { updatedAt: 'ASC' },
+      take: safeMaxItems,
+    });
+
+    return trades.map((trade) => ({
+      id: trade.id,
+      userId: trade.userId,
+      connectionId: trade.connectionId,
+    }));
+  }
+
   async reconcileTrades(
     userId: string,
     payload: {
@@ -209,14 +236,15 @@ export class TradingService {
     },
   ) {
     const maxItems = Math.min(Math.max(payload.maxItems ?? 50, 1), 200);
+    const baseWhere: FindOptionsWhere<Trade> = {
+      userId,
+      orderStatus: In(PENDING_RECONCILIATION_STATUSES),
+      ...(payload.connectionId ? { connectionId: payload.connectionId } : {}),
+    };
     const trades = payload.tradeId
       ? [await this.findByIdAndUser(payload.tradeId, userId)]
       : await this.tradeRepository.find({
-          where: {
-            userId,
-            orderStatus: PENDING_RECONCILIATION_STATUSES[0],
-            ...(payload.connectionId ? { connectionId: payload.connectionId } : {}),
-          },
+          where: baseWhere,
           order: { createdAt: 'DESC' },
           take: maxItems,
         });
