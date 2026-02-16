@@ -108,8 +108,10 @@ export class BacktestingService {
         takeProfitPercent: dto.takeProfitPercent,
         walkForwardWindows: dto.walkForwardWindows,
         initialCapital: allocatedCapital,
-          impactBps: dto.impactBps,
-          maxParticipationRate: dto.maxParticipationRate,
+        impactBps: dto.impactBps,
+        maxParticipationRate: dto.maxParticipationRate,
+        impactModel: dto.impactModel,
+        impactVolatilityWeight: dto.impactVolatilityWeight,
       });
 
       instrumentSummaries.push({
@@ -174,6 +176,8 @@ export class BacktestingService {
         initialCapital,
         impactBps: dto.impactBps ?? 0,
         maxParticipationRate: dto.maxParticipationRate ?? 0,
+        impactModel: dto.impactModel ?? 'linear',
+        impactVolatilityWeight: dto.impactVolatilityWeight ?? 0,
       },
       instruments: instrumentSummaries,
       trades: sortedTrades,
@@ -219,6 +223,8 @@ export class BacktestingService {
           initialCapital: dto.initialCapital,
           impactBps: dto.impactBps,
           maxParticipationRate: dto.maxParticipationRate,
+          impactModel: dto.impactModel,
+          impactVolatilityWeight: dto.impactVolatilityWeight,
           entryThresholdPercent,
           exitThresholdPercent,
         });
@@ -252,6 +258,8 @@ export class BacktestingService {
         exitCandidates,
         impactBps: dto.impactBps ?? 0,
         maxParticipationRate: dto.maxParticipationRate ?? 0,
+        impactModel: dto.impactModel ?? 'linear',
+        impactVolatilityWeight: dto.impactVolatilityWeight ?? 0,
       },
     };
   }
@@ -291,6 +299,8 @@ export class BacktestingService {
         slippageBps: dto.slippageBps,
         impactBps: dto.impactBps,
         maxParticipationRate: dto.maxParticipationRate,
+        impactModel: dto.impactModel,
+        impactVolatilityWeight: dto.impactVolatilityWeight,
         stopLossPercent: dto.stopLossPercent,
         takeProfitPercent: dto.takeProfitPercent,
         walkForwardWindows: dto.walkForwardWindows,
@@ -325,6 +335,8 @@ export class BacktestingService {
         maxWeightPercent: dto.maxWeightPercent ?? 100,
         maxActiveInstruments: dto.maxActiveInstruments ?? uniqueTokens.length,
         candidateCount: dto.candidateCount ?? 120,
+        impactModel: dto.impactModel ?? 'linear',
+        impactVolatilityWeight: dto.impactVolatilityWeight ?? 0,
       },
     };
   }
@@ -354,6 +366,8 @@ export class BacktestingService {
     const initialCapital = dto.initialCapital ?? 0;
     const impactBps = dto.impactBps ?? 0;
     const maxParticipationRate = dto.maxParticipationRate ?? 0;
+    const impactModel = dto.impactModel ?? 'linear';
+    const impactVolatilityWeight = dto.impactVolatilityWeight ?? 0;
 
     if (candles.length < 2) {
       return {
@@ -379,6 +393,8 @@ export class BacktestingService {
           initialCapital,
           impactBps,
           maxParticipationRate,
+          impactModel,
+          impactVolatilityWeight,
         },
         trades: [],
         equityCurve: [],
@@ -404,6 +420,8 @@ export class BacktestingService {
         takeProfitPercent,
         impactBps,
         maxParticipationRate,
+        impactModel,
+        impactVolatilityWeight,
         cumulativePnL,
         windowNumber: index + 1,
       });
@@ -450,6 +468,8 @@ export class BacktestingService {
         initialCapital,
         impactBps,
         maxParticipationRate,
+        impactModel,
+        impactVolatilityWeight,
       },
       trades: allTrades,
       equityCurve: allEquityCurve,
@@ -468,6 +488,8 @@ export class BacktestingService {
     takeProfitPercent: number;
     impactBps: number;
     maxParticipationRate: number;
+    impactModel: 'linear' | 'square_root';
+    impactVolatilityWeight: number;
     cumulativePnL: number;
     windowNumber: number;
   }) {
@@ -539,6 +561,9 @@ export class BacktestingService {
             candleVolume: Number(current.volume ?? 0),
             impactBps: input.impactBps,
             maxParticipationRate: input.maxParticipationRate,
+            impactModel: input.impactModel,
+            impactVolatilityWeight: input.impactVolatilityWeight,
+            candleRangePercent: this.deriveCandleRangePercent(current),
           });
           const netPnl = grossPnl - input.feePerTrade - impactCost;
 
@@ -623,6 +648,9 @@ export class BacktestingService {
     candleVolume: number;
     impactBps: number;
     maxParticipationRate: number;
+    impactModel: 'linear' | 'square_root';
+    impactVolatilityWeight: number;
+    candleRangePercent: number;
   }) {
     const baseImpactRate = Math.max(input.impactBps, 0) / 10_000;
     if (baseImpactRate <= 0) {
@@ -630,16 +658,20 @@ export class BacktestingService {
     }
 
     const tradedNotional = (Math.abs(input.entryPrice) + Math.abs(input.exitPrice)) * input.quantity;
-    let impactMultiplier = 1;
+    const participationRate =
+      input.candleVolume > 0 ? Math.max(input.quantity / input.candleVolume, 0) : 0;
+    const normalizedParticipation =
+      input.maxParticipationRate > 0
+        ? participationRate / input.maxParticipationRate
+        : participationRate;
+    const linearMultiplier = 1 + Math.max(normalizedParticipation - 1, 0);
+    const squareRootMultiplier = 1 + Math.sqrt(Math.max(normalizedParticipation, 0));
+    const modelMultiplier =
+      input.impactModel === 'square_root' ? squareRootMultiplier : linearMultiplier;
+    const volatilityMultiplier =
+      1 + Math.max(input.impactVolatilityWeight, 0) * Math.max(input.candleRangePercent, 0);
 
-    if (input.candleVolume > 0 && input.maxParticipationRate > 0) {
-      const participationRate = input.quantity / input.candleVolume;
-      if (participationRate > input.maxParticipationRate) {
-        impactMultiplier += participationRate / input.maxParticipationRate - 1;
-      }
-    }
-
-    return tradedNotional * baseImpactRate * impactMultiplier;
+    return tradedNotional * baseImpactRate * modelMultiplier * volatilityMultiplier;
   }
 
   private normalizeWeights(tokens: string[], providedWeights?: number[]) {
@@ -673,6 +705,12 @@ export class BacktestingService {
     }
     const quantity = Math.floor(allocatedCapital / referencePrice);
     return Math.max(quantity, 1);
+  }
+
+  private deriveCandleRangePercent(candle: Candle): number {
+    const reference = Math.max(Math.abs(candle.close), 1e-9);
+    const range = Math.max(Number(candle.high ?? 0) - Number(candle.low ?? 0), 0);
+    return range / reference;
   }
 
   private buildPortfolioEquityCurve(trades: PortfolioTrade[], initialCapital: number) {

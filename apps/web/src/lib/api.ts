@@ -141,6 +141,8 @@ export const backtestingApi = {
     slippageBps?: number;
     impactBps?: number;
     maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;
@@ -160,6 +162,8 @@ export const backtestingApi = {
     slippageBps?: number;
     impactBps?: number;
     maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;
@@ -176,6 +180,8 @@ export const backtestingApi = {
     slippageBps?: number;
     impactBps?: number;
     maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;
@@ -195,11 +201,17 @@ export const backtestingApi = {
     slippageBps?: number;
     impactBps?: number;
     maxParticipationRate?: number;
+    impactModel?: 'linear' | 'square_root';
+    impactVolatilityWeight?: number;
     stopLossPercent?: number;
     takeProfitPercent?: number;
     walkForwardWindows?: number;
     initialCapital?: number;
     topN?: number;
+    minWeightPercent?: number;
+    maxWeightPercent?: number;
+    maxActiveInstruments?: number;
+    candidateCount?: number;
   }) => api.post('/backtesting/optimize-portfolio', data),
 };
 

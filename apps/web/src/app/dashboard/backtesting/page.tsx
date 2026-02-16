@@ -35,6 +35,8 @@ export default function BacktestingPage() {
     slippageBps: '0',
     impactBps: '0',
     maxParticipationRate: '0.05',
+    impactModel: 'linear',
+    impactVolatilityWeight: '0',
     stopLossPercent: '0.6',
     takeProfitPercent: '1.2',
     walkForwardWindows: '1',
@@ -80,6 +82,8 @@ export default function BacktestingPage() {
         slippageBps: Number(form.slippageBps),
         impactBps: Number(form.impactBps),
         maxParticipationRate: Number(form.maxParticipationRate),
+        impactModel: form.impactModel as 'linear' | 'square_root',
+        impactVolatilityWeight: Number(form.impactVolatilityWeight),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -134,6 +138,8 @@ export default function BacktestingPage() {
         slippageBps: Number(form.slippageBps),
         impactBps: Number(form.impactBps),
         maxParticipationRate: Number(form.maxParticipationRate),
+        impactModel: form.impactModel as 'linear' | 'square_root',
+        impactVolatilityWeight: Number(form.impactVolatilityWeight),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -182,6 +188,8 @@ export default function BacktestingPage() {
         slippageBps: Number(form.slippageBps),
         impactBps: Number(form.impactBps),
         maxParticipationRate: Number(form.maxParticipationRate),
+        impactModel: form.impactModel as 'linear' | 'square_root',
+        impactVolatilityWeight: Number(form.impactVolatilityWeight),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -228,6 +236,8 @@ export default function BacktestingPage() {
         slippageBps: Number(form.slippageBps),
         impactBps: Number(form.impactBps),
         maxParticipationRate: Number(form.maxParticipationRate),
+        impactModel: form.impactModel as 'linear' | 'square_root',
+        impactVolatilityWeight: Number(form.impactVolatilityWeight),
         stopLossPercent: Number(form.stopLossPercent),
         takeProfitPercent: Number(form.takeProfitPercent),
         walkForwardWindows: Number(form.walkForwardWindows),
@@ -439,6 +449,29 @@ export default function BacktestingPage() {
                 value={form.maxParticipationRate}
                 onChange={(event) =>
                   setForm({ ...form, maxParticipationRate: event.target.value })
+                }
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              />
+            </Field>
+            <Field label="Impact model">
+              <select
+                value={form.impactModel}
+                onChange={(event) => setForm({ ...form, impactModel: event.target.value })}
+                className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
+              >
+                <option value="linear">Linear participation</option>
+                <option value="square_root">Square-root participation</option>
+              </select>
+            </Field>
+            <Field label="Impact volatility weight">
+              <input
+                type="number"
+                min={0}
+                max={10}
+                step="0.1"
+                value={form.impactVolatilityWeight}
+                onChange={(event) =>
+                  setForm({ ...form, impactVolatilityWeight: event.target.value })
                 }
                 className="w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2"
               />

@@ -200,4 +200,52 @@ describe('BacktestingService', () => {
       expect(Math.min(...active)).toBeGreaterThanOrEqual(0.099999);
     }
   });
+
+  it('applies distinct impact cost profile for square-root model', async () => {
+    brokerServiceMock.getKiteHistoricalData.mockResolvedValue({
+      candles: [
+        ['2026-01-01T09:15:00+0530', 100, 105, 95, 100, 50],
+        ['2026-01-01T09:20:00+0530', 100, 106, 94, 103, 45],
+        ['2026-01-01T09:25:00+0530', 103, 107, 99, 101, 40],
+        ['2026-01-01T09:30:00+0530', 101, 104, 97, 99, 38],
+      ],
+    });
+
+    const linearResult = await service.runBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentToken: '12345',
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      quantity: 20,
+      entryThresholdPercent: 0.4,
+      exitThresholdPercent: 0.2,
+      impactBps: 8,
+      maxParticipationRate: 0.05,
+      impactModel: 'linear',
+      impactVolatilityWeight: 0.5,
+    });
+
+    const squareRootResult = await service.runBacktest('user-1', {
+      connectionId: 'conn-1',
+      instrumentToken: '12345',
+      interval: '5minute',
+      fromDate: '2026-01-01',
+      toDate: '2026-01-02',
+      quantity: 20,
+      entryThresholdPercent: 0.4,
+      exitThresholdPercent: 0.2,
+      impactBps: 8,
+      maxParticipationRate: 0.05,
+      impactModel: 'square_root',
+      impactVolatilityWeight: 0.5,
+    });
+
+    expect(squareRootResult.summary.totalImpactCost).toBeGreaterThan(0);
+    expect(linearResult.summary.totalImpactCost).toBeGreaterThan(0);
+    expect(squareRootResult.summary.totalImpactCost).not.toBeCloseTo(
+      linearResult.summary.totalImpactCost,
+      6,
+    );
+  });
 });

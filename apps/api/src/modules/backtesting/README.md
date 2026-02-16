@@ -22,6 +22,10 @@ Backtesting module provides a first production-safe historical simulation pipeli
   - `quantity`
   - `feePerTrade`
   - `slippageBps`
+  - `impactBps`
+  - `maxParticipationRate`
+  - `impactModel` (`linear` | `square_root`)
+  - `impactVolatilityWeight`
   - `stopLossPercent`
   - `takeProfitPercent`
   - `walkForwardWindows`
@@ -32,13 +36,14 @@ Backtesting module provides a first production-safe historical simulation pipeli
   - `maxActiveInstruments`
   - `candidateCount`
 
-## Simulation model (v1.5)
+## Simulation model (v1.7)
 
 - Fetches historical candles from broker API.
 - Uses threshold-based momentum/reversal entries.
 - Supports long and short simulated positions.
 - Applies configurable slippage and fixed per-trade cost.
 - Applies configurable slippage and market impact cost model.
+- Supports linear and square-root participation impact profiles with volatility weighting.
 - Applies optional stop-loss and take-profit constraints.
 - Supports walk-forward style segmented runs over multiple windows.
 - Computes net PnL, ending equity, max drawdown, and per-window summaries.
@@ -97,5 +102,5 @@ flowchart TD
 ## Notes
 
 - This remains deterministic and intentionally lightweight.
-- Future versions should add institutional microstructure impact models and richer strategy DSL support.
-- Current market impact model is baseline (bps + participation multiplier), not full microstructure simulation.
+- Future versions should add full L2/order-book aware microstructure impact models and richer strategy DSL support.
+- Current market impact model is hybrid baseline (bps + participation profile + candle-range volatility weighting), not full microstructure simulation.

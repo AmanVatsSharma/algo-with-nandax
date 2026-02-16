@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -99,4 +100,16 @@ export class RunBacktestDto {
   @Min(0)
   @Max(1)
   maxParticipationRate?: number;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['linear', 'square_root'])
+  impactModel?: 'linear' | 'square_root';
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(10)
+  impactVolatilityWeight?: number;
 }

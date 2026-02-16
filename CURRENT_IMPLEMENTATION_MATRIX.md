@@ -88,7 +88,7 @@ This document reflects **actual code state** and intentionally separates shipped
 |---|---|---|
 | Multi-provider AI orchestration | 🚧 | Deterministic provider registry + optional live OpenAI/Anthropic inference with retries/timeout/fallback + persisted decision logs + governance summary API; centralized policy engine pending |
 | AI cost ledger baseline | ✅ | Daily rollup table + scheduler + governance ledger API shipped |
-| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + market-impact + constrained portfolio optimization baseline shipped; institutional microstructure optimizer pending |
+| Full institutional backtesting engine (walk-forward/slippage/portfolio-level) | 🚧 | Walk-forward + slippage + constrained portfolio optimization + hybrid impact model (linear/square-root + volatility weighting) shipped; full order-book microstructure model pending |
 | Multi-tenant white-label | 📌 | Planned |
 | SSO/SAML enterprise auth | 📌 | Planned |
 
