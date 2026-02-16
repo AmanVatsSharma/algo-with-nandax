@@ -13,6 +13,7 @@ Risk module centralizes user-level trading guardrails and breach alerts.
 - Risk alerts for breach events
 - API for profile updates and kill-switch controls
 - Risk analytics snapshot (historical VaR + drawdown + exposure)
+- Scheduled auto kill-switch worker for daily PnL breaches
 
 ## API
 
@@ -50,3 +51,20 @@ flowchart TD
   D --> E[Load open trades exposure]
   E --> F[Return risk snapshot]
 ```
+
+## Auto kill-switch flow
+
+```mermaid
+flowchart TD
+  A[Cron every 5 minutes] --> B[Load monitorable risk profiles]
+  B --> C[Compute today PnL per user]
+  C --> D{Daily limits breached?}
+  D -->|no| E[No action]
+  D -->|yes| F[Enable kill-switch automatically]
+  F --> G[Create risk alerts + logs]
+```
+
+## Scheduler configuration
+
+- `RISK_AUTO_KILL_SWITCH_ENABLED` (default: `true`)
+- `RISK_AUTO_KILL_SWITCH_BATCH_SIZE` (default: `200`, min: 1, max: 1000)

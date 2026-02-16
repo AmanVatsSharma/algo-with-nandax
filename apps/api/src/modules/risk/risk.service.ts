@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, Repository } from 'typeorm';
+import { Between, MoreThan, Repository } from 'typeorm';
 import { RiskProfile } from './entities/risk-profile.entity';
 import { RiskAlert, RiskAlertType } from './entities/risk-alert.entity';
 import { UpdateRiskProfileDto } from './dto/update-risk-profile.dto';
@@ -89,6 +89,33 @@ export class RiskService {
       order: { createdAt: 'DESC' },
       take: Math.min(Math.max(limit, 1), 200),
     });
+  }
+
+  async getProfilesForDailyPnLMonitoring(limit: number = 200): Promise<RiskProfile[]> {
+    const safeLimit = Math.min(Math.max(limit, 1), 1000);
+    return this.riskProfileRepository
+      .createQueryBuilder('profile')
+      .where('profile.killSwitchEnabled = :killSwitchEnabled', { killSwitchEnabled: false })
+      .andWhere('(profile.maxDailyLoss > 0 OR profile.maxDailyProfit > 0)')
+      .orderBy('profile.updatedAt', 'ASC')
+      .limit(safeLimit)
+      .getMany();
+  }
+
+  async getTodayPnLForUser(userId: string): Promise<number> {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const trades = await this.tradeRepository.find({
+      where: {
+        userId,
+        createdAt: Between(startOfDay, endOfDay),
+      },
+    });
+
+    return trades.reduce((sum, trade) => sum + Number(trade.netPnL ?? 0), 0);
   }
 
   async getRiskAnalytics(userId: string, dto: GetRiskAnalyticsDto) {
@@ -306,6 +333,21 @@ export class RiskService {
       metadata?: Record<string, unknown>;
     },
   ) {
+    // Alert dedupe window prevents repeated identical alerts on every cron tick.
+    const dedupeWindowStart = new Date(Date.now() - 5 * 60 * 1000);
+    const existingRecentAlert = await this.riskAlertRepository.findOne({
+      where: {
+        userId,
+        alertType: payload.alertType,
+        message: payload.message,
+        createdAt: MoreThan(dedupeWindowStart),
+      },
+      order: { createdAt: 'DESC' },
+    });
+    if (existingRecentAlert) {
+      return;
+    }
+
     const alert = this.riskAlertRepository.create({
       userId,
       alertType: payload.alertType,

@@ -7,12 +7,14 @@ describe('RiskService', () => {
     create: jest.Mock;
     save: jest.Mock;
     update: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
 
   let riskAlertRepository: {
     create: jest.Mock;
     save: jest.Mock;
     find: jest.Mock;
+    findOne: jest.Mock;
   };
 
   let service: RiskService;
@@ -26,12 +28,20 @@ describe('RiskService', () => {
       create: jest.fn((payload) => payload),
       save: jest.fn(async (payload) => payload),
       update: jest.fn(async () => ({ affected: 1 })),
+      createQueryBuilder: jest.fn(() => ({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getMany: jest.fn(async () => []),
+      })),
     };
 
     riskAlertRepository = {
       create: jest.fn((payload) => payload),
       save: jest.fn(async (payload) => payload),
       find: jest.fn(async () => []),
+      findOne: jest.fn(async () => null),
     };
 
     tradeRepository = {
@@ -127,5 +137,18 @@ describe('RiskService', () => {
     expect(result.riskMetrics.valueAtRisk).toBeGreaterThan(0);
     expect(result.riskMetrics.expectedShortfall).toBeGreaterThan(0);
     expect(Array.isArray(result.dailyPnL)).toBe(true);
+  });
+
+  it('computes today pnl from trade repository', async () => {
+    tradeRepository.find.mockResolvedValue([
+      { netPnL: 100 },
+      { netPnL: -25.5 },
+      { netPnL: 10 },
+    ]);
+
+    const pnl = await service.getTodayPnLForUser('user-id');
+
+    expect(pnl).toBeCloseTo(84.5, 5);
+    expect(tradeRepository.find).toHaveBeenCalledTimes(1);
   });
 });

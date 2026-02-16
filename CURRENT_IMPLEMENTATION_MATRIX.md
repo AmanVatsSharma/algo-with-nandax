@@ -56,7 +56,7 @@ This document reflects **actual code state** and intentionally separates shipped
 | Guardrails max positions/day trades | ✅ | Enforced in agent processor |
 | Daily PnL guardrails (`maxDailyLoss`/`maxDailyProfit`) | ✅ | Strategy config-aware |
 | Fill reconciliation from tradebook | 🚧 | Added on-demand `/trades/reconcile` + minute-level auto reconciliation worker; true tradebook stream sync pending |
-| Risk module (v1 kill-switch + risk limits + alerts) | ✅ | Profile APIs + execution integration shipped |
+| Risk module (v1 kill-switch + risk limits + alerts) | ✅ | Profile APIs + execution integration + auto kill-switch scheduler shipped |
 | Advanced risk analytics (VaR/correlation/stress testing) | 🚧 | Baseline VaR + expected shortfall + drawdown API shipped; correlation/stress testing pending |
 
 ## Security & Compliance

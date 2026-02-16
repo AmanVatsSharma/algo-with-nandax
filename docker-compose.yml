@@ -60,6 +60,8 @@ services:
       ENCRYPTION_KEY: your-strong-encryption-key-change-this-in-production
       TRADING_AUTO_RECONCILIATION_ENABLED: true
       TRADING_AUTO_RECONCILIATION_BATCH_SIZE: 100
+      RISK_AUTO_KILL_SWITCH_ENABLED: true
+      RISK_AUTO_KILL_SWITCH_BATCH_SIZE: 200
       FRONTEND_URL: http://localhost:3000
     ports:
       - '3001:3001'
