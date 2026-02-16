@@ -9,6 +9,14 @@ import { StrategyService } from '@/modules/strategy/strategy.service';
 import { AgentType } from '../entities/agent.entity';
 import { OrderSide, OrderType } from '@/modules/trading/entities/trade.entity';
 import { getErrorMessage } from '@/common/utils/error.utils';
+import { BrokerService } from '@/modules/broker/broker.service';
+
+type AgentDecision = {
+  action: 'buy' | 'sell' | 'hold';
+  confidence: number;
+  symbol?: string;
+  metadata?: Record<string, unknown>;
+};
 
 @Processor('agents')
 export class AgentProcessor {
@@ -20,6 +28,7 @@ export class AgentProcessor {
     private readonly tradingService: TradingService,
     private readonly tradeExecutor: TradeExecutor,
     private readonly strategyService: StrategyService,
+    private readonly brokerService: BrokerService,
   ) {}
 
   @Process('execute-strategy')
@@ -44,29 +53,79 @@ export class AgentProcessor {
         return;
       }
 
-      // Get market data (placeholder - would fetch real data)
-      const marketData = this.getMarketData(strategy.instruments);
+      // Enforce daily trade budget from strategy.
+      const todayTrades = await this.tradingService.findTodayTrades(agent.userId);
+      const todayTradesForAgent = todayTrades.filter((trade) => trade.agentId === agent.id);
+      if (todayTradesForAgent.length >= strategy.maxTradesPerDay) {
+        this.logger.warn(
+          `Agent ${agentId} reached daily trade limit (${strategy.maxTradesPerDay}), skipping`,
+        );
+        return;
+      }
+
+      // Fetch live market data from broker connection.
+      const marketData = await this.getMarketData(agent.userId, agent.connectionId, strategy.instruments);
 
       // Make trading decision based on agent type
-      let decision;
+      let decision: AgentDecision;
       if (agentType === AgentType.AI_POWERED) {
-        decision = await this.agentExecutor.makeAIDecision(
+        const aiDecision = await this.agentExecutor.makeAIDecision(
           agentId,
           marketData,
           strategyConfig,
         );
+
+        decision = {
+          ...aiDecision,
+          symbol:
+            (aiDecision.metadata?.symbol as string | undefined) ?? strategy.instruments[0],
+        };
       } else {
         decision = this.executeRuleBasedStrategy(marketData, strategyConfig);
       }
 
       // Execute trade if decision is buy or sell
       if (decision.action === 'buy' || decision.action === 'sell') {
-        this.logger.log(`Agent ${agentId} decided to ${decision.action} with confidence ${decision.confidence}`);
+        this.logger.log(
+          `Agent ${agentId} decided to ${decision.action} ${decision.symbol ?? 'unknown-symbol'} with confidence ${decision.confidence}`,
+        );
         
         // Only execute if confidence is above threshold
         if (decision.confidence >= 0.7) {
-          // Execute trade logic here
-          this.logger.log(`Trade execution logic would trigger here for agent ${agentId}`);
+          if (!agent.autoTrade) {
+            this.logger.warn(`Agent ${agentId} is autoTrade=false. Decision logged without execution.`);
+            return { success: true, decision, executed: false, reason: 'auto-trade-disabled' };
+          }
+
+          if (agent.paperTrading) {
+            this.logger.warn(`Agent ${agentId} is in paperTrading mode. Live order skipped.`);
+            return { success: true, decision, executed: false, reason: 'paper-trading-enabled' };
+          }
+
+          const symbol = decision.symbol ?? strategy.instruments[0];
+          const ltp = this.getInstrumentLtp(marketData, symbol);
+          if (!ltp || ltp <= 0) {
+            this.logger.warn(
+              `Agent ${agentId} has invalid LTP for ${symbol}. Cannot calculate quantity safely.`,
+            );
+            return { success: true, decision, executed: false, reason: 'missing-ltp' };
+          }
+
+          const quantity = Math.max(1, Math.floor(Number(strategy.maxCapitalPerTrade) / ltp));
+
+          await this.tradeExecutor.executeTrade(agent.userId, agent.id, agent.connectionId, {
+            symbol,
+            side: decision.action === 'buy' ? OrderSide.BUY : OrderSide.SELL,
+            quantity,
+            orderType: OrderType.MARKET,
+            price: ltp,
+          });
+
+          this.logger.log(
+            `Trade executed for agent ${agentId}: ${decision.action} ${quantity} ${symbol} @ ${ltp}`,
+          );
+
+          return { success: true, decision, executed: true };
         }
       }
 
@@ -81,21 +140,95 @@ export class AgentProcessor {
     }
   }
 
-  private getMarketData(instruments: string[]) {
-    // Placeholder for fetching real market data
-    // In production, this would fetch from market data service
+  private async getMarketData(userId: string, connectionId: string, instruments: string[]) {
+    try {
+      const quotes = await this.brokerService.getKiteQuotes(userId, connectionId, instruments);
+      return {
+        quotes,
+        timestamp: new Date(),
+      };
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch live market data for connection ${connectionId}. Using empty quotes fallback.`,
+        error,
+      );
+      return {
+        quotes: {},
+        timestamp: new Date(),
+      };
+    }
+  }
+
+  private executeRuleBasedStrategy(
+    marketData: { quotes: Record<string, any> },
+    strategyConfig: any,
+  ): AgentDecision {
+    const symbol = Object.keys(marketData.quotes)[0];
+    if (!symbol) {
+      return {
+        action: 'hold',
+        confidence: 0.4,
+        metadata: { reason: 'no-market-data' },
+      };
+    }
+
+    const quote = marketData.quotes[symbol];
+    const ltp = Number(quote?.last_price ?? 0);
+    const open = Number(quote?.ohlc?.open ?? 0);
+
+    if (ltp <= 0 || open <= 0) {
+      return {
+        action: 'hold',
+        confidence: 0.4,
+        symbol,
+        metadata: { reason: 'invalid-price-points' },
+      };
+    }
+
+    const changePercent = ((ltp - open) / open) * 100;
+    const absoluteChange = Math.abs(changePercent);
+    const confidence = Math.min(0.95, Math.max(0.55, absoluteChange / 2));
+
+    if (changePercent >= 0.35) {
+      return {
+        action: 'buy',
+        confidence,
+        symbol,
+        metadata: { changePercent, strategy: 'intraday-momentum-breakout' },
+      };
+    }
+
+    if (changePercent <= -0.35) {
+      return {
+        action: 'sell',
+        confidence,
+        symbol,
+        metadata: { changePercent, strategy: 'intraday-mean-reversal-entry' },
+      };
+    }
+
     return {
-      quotes: {},
-      timestamp: new Date(),
+      action: 'hold',
+      confidence: 0.55,
+      symbol,
+      metadata: { changePercent, strategyConfig },
     };
   }
 
-  private executeRuleBasedStrategy(marketData: any, strategyConfig: any) {
-    // Placeholder for rule-based strategy execution
-    // This would implement technical indicators and rules
-    return {
-      action: 'hold' as 'buy' | 'sell' | 'hold',
-      confidence: 0.5,
-    };
+  private getInstrumentLtp(
+    marketData: { quotes: Record<string, any> },
+    symbol: string,
+  ): number | null {
+    const quote = marketData.quotes?.[symbol];
+    if (!quote) {
+      return null;
+    }
+
+    const ltp = Number(quote.last_price ?? 0);
+    if (!Number.isFinite(ltp) || ltp <= 0) {
+      return null;
+    }
+
+    return ltp;
   }
 }
